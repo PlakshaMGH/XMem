@@ -14,6 +14,8 @@ if device == "cuda":
     torch.backends.cudnn.benchmark = True
 print(f"Training on {device}.")
 
+_, long_id = init_logger()
+
 MAIN_FOLDER = Path("./data/EndoVis17")
 TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames/train"
 TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train/binary_masks"
@@ -23,52 +25,61 @@ SAVE_DIR.mkdir(parents=True, exist_ok=True)
 # Set seed to ensure the same initialization
 reseed(42)
 
-logger, long_id = init_logger()
-
+transforms_dict = {}
 # These set of transform is the same for im/gt pairs, but different among the 3 sampled frames
-pair_im_transform = transforms.Compose([
+transforms_dict["single_image"] = transforms.Compose([
     transforms.ColorJitter(0.01, 0.01, 0.01, 0),
 ])
 
-pair_imgt_transform = transforms.Compose([
-    transforms.RandomAffine(15, shear=10),
-])
+transforms_dict["pair_image_gt"] = [
+    transforms.Compose([
+        transforms.RandomAffine(15, shear=10, interpolation=InterpolationMode.BILINEAR, fill=im_mean) # for images
+    ]),
+    transforms.Compose([
+        transforms.RandomAffine(15, shear=10, interpolation=InterpolationMode.NEAREST, fill=0) # for masks
+    ])
+]
 
 # These transform are the same for all pairs in the sampled sequence
-all_im_transform = transforms.Compose([
+transforms_dict["seq_image"] = transforms.Compose([
     transforms.ColorJitter(0.1, 0.03, 0.03, 0),
     transforms.RandomGrayscale(0.05),
 ])
 
-all_imgt_transform = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomResizedCrop((384, 384), scale=(0.36,1.00))
-])
+
+transforms_dict["seq_image_gt"] = [
+    transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomResizedCrop((384, 384), scale=(0.36,1.00), interpolation=InterpolationMode.BILINEAR) # for images
+    ]),
+    transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomResizedCrop((384, 384), scale=(0.36,1.00), interpolation=InterpolationMode.NEAREST) # for masks
+    ])
+]
 
 train_dataset = EndoVisDataset(
     TRAIN_VIDEOS_PATH,
     TRAIN_MASKS_PATH,
-    num_iterations=100,#config["iterations"],
-    batch_size=2,#config["batch_size"],
-    max_jump=config["max_skip_value"],
-    num_frames=config["num_frames"],
-    max_num_obj=config["max_num_obj"],
-    im_tran=pair_im_transform,
-    imgt_tran=pair_imgt_transform,
-    all_im_tran=all_im_transform,
-    all_imgt_tran=all_imgt_transform,
+    num_iterations=config.num_iterations,
+    batch_size=config.batch_size,
+    max_jump=20,
+    num_frames=8,
+    max_num_obj=1,
+    transform=transforms_dict,
+    subset=[1]
 )
 
 train_loader = DataLoader(
     train_dataset,
-    config["batch_size"],
-    num_workers=config["num_workers"],
+    config.batch_size,
+    num_workers=config.num_workers,
     drop_last=True,
 )
 
 model = XMemTrainer(
     config,
-    logger=logger,
+    # logger=logger,
     save_path=SAVE_DIR / long_id,
     local_rank=0,
     world_size=1,
@@ -76,7 +87,7 @@ model = XMemTrainer(
 
 model.load_network("./artifacts/pretrained_weights/XMem.pth")
 
-total_epochs = config["iterations"]
+total_epochs = config.num_iterations
 print(f"Training model for {total_epochs} epochs.")
 ## Train Loop
 model.train()

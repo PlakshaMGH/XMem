@@ -191,6 +191,9 @@ class Config:
 
     exp_id: str = "EndoVis17_Binary"
 
+    def to_dict(self):
+        return self.__dict__
+
 config = Config()
 
 
