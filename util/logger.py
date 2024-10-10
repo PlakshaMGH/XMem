@@ -101,7 +101,7 @@ class TensorboardLogger:
 
 
 class WandbLogger:
-    def __init__(self, short_id, id):
+    def __init__(self, short_id, id, project_name):
         self.short_id = short_id
         if self.short_id == 'NULL':
             self.short_id = 'DEBUG'
@@ -114,7 +114,7 @@ class WandbLogger:
 
             # Initialize W&B run
             self.logger = wandb.init(
-                project="XMem_Generalization",  # Replace with your project name
+                project=project_name,  # Replace with your project name
                 name=short_id,
                 reinit=True  # Allows multiple runs within the same script
             )
@@ -161,6 +161,7 @@ class WandbLogger:
         if self.no_log:
             warnings.warn('W&B Logging has been disabled.')
             return
+        # x = x.transpose((2, 0, 1))  # Convert HWC to CHW
         wandb.log({tag: wandb.Image(x)}, step=step)
 
     def log_seg(self, tag, x, step):
@@ -190,4 +191,9 @@ class WandbLogger:
     def finish(self):
         if not self.no_log:
             wandb.finish()
+
+    def log_model(self, model, name):
+        if not self.no_log:
+            wandb.log_model(model, name=name)
+
 

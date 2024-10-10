@@ -168,6 +168,7 @@ class XMemTrainer:
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
         model_path = f'{self.save_path}_{it}.pth'
         torch.save(self.XMem.module.state_dict(), model_path)
+        self.logger.log_model(model_path, name=f'iteration_{it}')
         print(f'Network saved to {model_path}.')
 
     def save_checkpoint(self, it):

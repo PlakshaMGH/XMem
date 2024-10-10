@@ -205,7 +205,7 @@ def init_logger(long_id=True):
     else:
         long_id = None
 
-    logger = WandbLogger(config.exp_id, long_id)
+    logger = WandbLogger(config.exp_id, long_id, project_name="XMem_Generalization")
 
     logger.log_string("hyperparams", str(config))
     return logger, long_id
