@@ -15,5 +15,5 @@ git clone https://github.com/PlakshaMGH/XMem.git
 
 cd workspace/XMem
 pip install -r requirements.txt
-pip install -e .
+# pip install -e .
 

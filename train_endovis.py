@@ -30,12 +30,12 @@ if local_rank == 0:
     logger, long_id = init_logger(long_id=True)
 
     # Construct the rank 0 model
-    model = XMemTrainer(config, logger=logger, 
+    model = XMemTrainer(config.to_dict(), logger=logger, 
                     save_path=Path('saves', long_id, long_id) if long_id is not None else None, 
                     local_rank=local_rank, world_size=world_size).train()
 else:
     # Construct model for other ranks
-    model = XMemTrainer(config, local_rank=local_rank, world_size=world_size).train()
+    model = XMemTrainer(config.to_dict(), local_rank=local_rank, world_size=world_size).train()
 
 # loading pretrained weights
 model.load_network("./artifacts/pretrained_weights/XMem.pth")
