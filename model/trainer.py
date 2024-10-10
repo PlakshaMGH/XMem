@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.amp import autocast, GradScaler
 
 from model.network import XMem
 from model.losses import LossComputer
@@ -43,7 +44,7 @@ class XMemTrainer:
             lambda p: p.requires_grad, self.XMem.parameters()), lr=config['lr'], weight_decay=config['weight_decay'])
         self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, config['steps'], config['gamma'])
         if config['amp']:
-            self.scaler = torch.cuda.amp.GradScaler()
+            self.scaler = GradScaler("cuda")
 
         # Logging info
         self.log_text_interval = config['log_text_interval']
@@ -69,7 +70,7 @@ class XMemTrainer:
         num_objects = first_frame_gt.shape[2]
         selector = data['selector'].unsqueeze(2).unsqueeze(2)
 
-        with torch.cuda.amp.autocast(enabled=self.config['amp']):
+        with autocast("cuda", enabled=self.config['amp']):
             # image features never change, compute once
             key, shrinkage, selection, f16, f8, f4 = self.XMem('encode_key', frames)
 
@@ -156,6 +157,8 @@ class XMemTrainer:
             self.optimizer.step()
 
         self.scheduler.step()
+
+        return losses
 
     def save_network(self, it):
         if self.save_path is None:

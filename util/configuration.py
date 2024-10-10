@@ -1,6 +1,5 @@
 from argparse import ArgumentParser
 
-
 def none_or_default(x, default):
     return x if x is not None else default
 
@@ -144,7 +143,7 @@ from util.logger import TensorboardLogger, WandbLogger
 
 @dataclass
 class Config:
-    benchmark: bool = False
+    benchmark: bool = True
     debug: bool = False
     deep_update_prob: float = 0.2
     gamma: float = 0.1
@@ -164,7 +163,7 @@ class Config:
     batch_size: int = 4
     end_warm: int = 700
     finetune: int = 0
-    iterations: int = 4_000
+    iterations: int = 2_500
     lr: float = 1e-5
     num_frames: int = 8 # default in the paper for training step on youtube videos
     num_ref_frames: int = 3
@@ -197,14 +196,17 @@ class Config:
 config = Config()
 
 
-def init_logger():
-    long_id = "%s_%s" % (
-        datetime.datetime.now().strftime("%b%d_%H.%M"),
-        config.exp_id,
-    )
-    git_info = "XMem"
-    # logger = TensorboardLogger(config["exp_id"], long_id, git_info)
+def init_logger(long_id=True):
+    if long_id:
+        long_id = "%s_%s" % (
+            datetime.datetime.now().strftime("%b%d_%H.%M"),
+            config.exp_id,
+        )
+    else:
+        long_id = None
+
     logger = WandbLogger(config.exp_id, long_id)
-    # logger.log_string("hyperparams", str(config))
+
+    logger.log_string("hyperparams", str(config))
     return logger, long_id
     

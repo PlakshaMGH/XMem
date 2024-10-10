@@ -55,6 +55,7 @@ class EndoVisDataset(Dataset):
             im_normalization,
         ])
 
+    # Pre-filtering based on subset provided
     def _filter_videos(self, video_list):
 
         # Initialize lists for storing video and frame information
