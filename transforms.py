@@ -41,3 +41,5 @@ def get_transforms():
             transforms.RandomResizedCrop((384, 384), scale=(0.36,1.00), interpolation=InterpolationMode.NEAREST) # for masks
         ])
     ]
+
+    return transforms_dict

@@ -161,7 +161,6 @@ class WandbLogger:
         if self.no_log:
             warnings.warn('W&B Logging has been disabled.')
             return
-        x = x.transpose((2, 0, 1))  # Convert HWC to CHW
         wandb.log({tag: wandb.Image(x)}, step=step)
 
     def log_seg(self, tag, x, step):

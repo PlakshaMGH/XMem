@@ -153,17 +153,17 @@ class Config:
     load_checkpoint: str = None
     load_network: str = None
 
-    log_image_interval: int = 100
+    log_image_interval: int = 250
     log_text_interval: int = 50
 
     amp: bool = False
     num_workers: int = 8
     max_num_obj: int = 1
 
-    batch_size: int = 4
+    batch_size: int = 8
     end_warm: int = 700
     finetune: int = 0
-    iterations: int = 2_500
+    num_iterations: int = 2_500
     lr: float = 1e-5
     num_frames: int = 8 # default in the paper for training step on youtube videos
     num_ref_frames: int = 3
@@ -178,15 +178,15 @@ class Config:
     weight_decay: float = 0.05
 
     # Stage 3 Defaults
-    s3_batch_size: int = 8
-    s3_end_warm: int = 700
-    s3_finetune: int = 0
-    s3_iterations: int = 3000
-    s3_lr: float = 1e-5
-    s3_num_frames: int = 16
-    s3_num_ref_frames: int = 3
-    s3_start_warm: int = 200
-    s3_steps: List[int] = field(default_factory=lambda: [2400])
+    # s3_batch_size: int = 8
+    # s3_end_warm: int = 700
+    # s3_finetune: int = 0
+    # s3_iterations: int = 2500
+    # s3_lr: float = 1e-5
+    # s3_num_frames: int = 16
+    # s3_num_ref_frames: int = 3
+    # s3_start_warm: int = 200
+    # s3_steps: List[int] = field(default_factory=lambda: [2400])
 
     exp_id: str = "EndoVis17_Binary"
 

@@ -117,7 +117,7 @@ class XMemTrainer:
                 out[f'logits_{ti}'] = logits
 
             if self._do_log or self._is_train:
-                losses = self.loss_computer.compute({**data, **out}, num_filled_objects, it)
+                losses: dict[str, torch.Tensor] = self.loss_computer.compute({**data, **out}, num_filled_objects, it)
 
                 # Logging
                 if self._do_log:
@@ -158,7 +158,7 @@ class XMemTrainer:
 
         self.scheduler.step()
 
-        return losses
+        return losses['total_loss'].item()
 
     def save_network(self, it):
         if self.save_path is None:

@@ -38,9 +38,9 @@ else:
     model = XMemTrainer(config.to_dict(), local_rank=local_rank, world_size=world_size).train()
 
 # loading pretrained weights
-model.load_network("./artifacts/pretrained_weights/XMem.pth")
+model.load_network("./artifacts/XMem.pth")
 
-MAIN_FOLDER = Path("./data/EndoVis17")
+MAIN_FOLDER = Path("../data")
 TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames/train"
 TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train/binary_masks"
 SAVE_DIR = Path("./artifacts/saved_models")
@@ -70,19 +70,19 @@ train_loader = DataLoader(
     pin_memory=True,
 )
 
-total_epochs = config.num_iterations
-print(f"Training model for {total_epochs} epochs.")
+total_iterations = config.num_iterations
+print(f"Training model for {total_iterations} iterations.")
 ## Train Loop
 model.train()
 
-iter_pbar = tqdm(range(1, total_epochs+1), disable=local_rank!=0)
-for iteration in iter_pbar:
+iter_pbar = tqdm(train_loader, disable=local_rank!=0)
+for iteration, data in enumerate(iter_pbar, start=1):
     train_sampler.set_epoch(iteration) 
-    for data in train_loader:
-        losses: dict[str, torch.Tensor] = model.do_pass(data, iteration)
 
-        # update progress bar
-        iter_pbar.set_postfix(losses)
+    total_loss: float = model.do_pass(data, iteration)
+
+    # update progress bar
+    iter_pbar.set_postfix(total_loss=total_loss)
 
 model.save_network(iteration)
 
