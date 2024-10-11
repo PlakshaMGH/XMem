@@ -138,7 +138,7 @@ import datetime
 from dataclasses import dataclass, field
 from typing import List
 
-from util.logger import TensorboardLogger, WandbLogger
+from util.logger import WandbLogger
 
 
 @dataclass
@@ -196,7 +196,7 @@ class Config:
 config = Config()
 
 
-def init_logger(long_id=True):
+def init_logger(long_id=True, existing_run=None):
     if long_id:
         long_id = "%s_%s" % (
             datetime.datetime.now().strftime("%b%d_%H.%M"),
@@ -205,7 +205,10 @@ def init_logger(long_id=True):
     else:
         long_id = None
 
-    logger = WandbLogger(config.exp_id, long_id, project_name="XMem_Generalization")
+    if existing_run is not None:
+        logger = WandbLogger(None, None, project_name="XMem_Generalization").get_run(existing_run)
+    else:
+        logger = WandbLogger(config.exp_id, long_id, project_name="XMem_Generalization")
 
     logger.log_string("hyperparams", str(config))
     return logger, long_id

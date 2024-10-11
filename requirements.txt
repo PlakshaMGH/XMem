@@ -8,3 +8,4 @@ numpy
 wandb
 matplotlib
 opencv-python
+scikit-image

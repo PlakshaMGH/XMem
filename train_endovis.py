@@ -27,7 +27,7 @@ print(f'I am rank {local_rank} in this world of size {world_size}!')
 # Model related
 if local_rank == 0:
     # Logging
-    logger, long_id = init_logger(long_id=True)
+    logger, long_id = init_logger(long_id=True, existing_run=None)
 
     # Construct the rank 0 model
     model = XMemTrainer(config.to_dict(), logger=logger, 
@@ -71,15 +71,17 @@ train_loader = DataLoader(
 )
 
 total_iterations = config.num_iterations
-print(f"Training model for {total_iterations} iterations.")
+iteration_per_gpu = total_iterations // world_size
+print(f"Training model for {total_iterations} total iterations and {iteration_per_gpu} iterations per GPU.")
 ## Train Loop
 model.train()
 
-iter_pbar = tqdm(train_loader, disable=local_rank!=0)
-for iteration, data in enumerate(iter_pbar, start=1):
+iter_pbar = tqdm(range(1, iteration_per_gpu+1), disable=local_rank!=0)
+for iteration in iter_pbar:
     train_sampler.set_epoch(iteration) 
 
-    total_loss: float = model.do_pass(data, iteration)
+    data = next(iter(train_loader))
+    total_loss: float = model.do_pass(data, iteration*world_size)
 
     # update progress bar
     iter_pbar.set_postfix(total_loss=total_loss)
@@ -87,5 +89,8 @@ for iteration, data in enumerate(iter_pbar, start=1):
 model.save_network(iteration)
 
 distributed.destroy_process_group()
+
+# end the logger
+logger.finish()
 
 print("Training complete!")

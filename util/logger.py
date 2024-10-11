@@ -102,6 +102,7 @@ class TensorboardLogger:
 
 class WandbLogger:
     def __init__(self, short_id, id, project_name):
+        self.project_name = project_name
         self.short_id = short_id
         if self.short_id == 'NULL':
             self.short_id = 'DEBUG'
@@ -132,6 +133,39 @@ class WandbLogger:
 
             # Log Git information
             # self.log_string('git', git_info)
+
+    def existing_run_name(self):
+        return self.logger.name
+        
+    def get_run(self, existing_run=None):
+        
+        if existing_run is not None:
+            return wandb.init(project=self.project_name, name=existing_run, resume='must')
+        
+        if self.logger is not None:
+            return self.logger
+        
+        wandb_dir = os.path.join(os.getcwd(), 'wandb')
+        if not os.path.exists(wandb_dir):
+            # no wandb folder exists, create new run
+            warnings.warn('W&B directory does not exist...')
+            return None
+        
+        runs = [d for d in os.listdir(wandb_dir) if os.path.isdir(os.path.join(wandb_dir, d))]
+        if not runs:
+            warnings.warn('No runs found in W&B directory...')
+            return None
+        
+        # find the latest run
+        latest_run = max(runs, key=lambda x: os.path.getmtime(os.path.join(wandb_dir, x)))
+
+        # resuming the latest run
+        print(f"Resuming run: {latest_run}")
+        self.logger = wandb.init(project=self.project_name, name=latest_run, resume='must')
+
+        self.no_log = False
+
+        return self.logger
 
     def log_scalar(self, tag, x, step):
         if self.no_log:
@@ -188,12 +222,10 @@ class WandbLogger:
             return
         wandb.log({tag: x})
 
-    def finish(self):
-        if not self.no_log:
-            wandb.finish()
-
     def log_model(self, model, name):
         if not self.no_log:
             wandb.log_model(model, name=name)
 
-
+    def finish(self):
+        if not self.no_log:
+            wandb.finish()
