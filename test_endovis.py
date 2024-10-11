@@ -152,6 +152,7 @@ def main():
     if best_model_path:
         best_save_path = saves_dir / "best.pth"
         torch.save(torch.load(best_model_path), best_save_path)
+        logger.log_model(best_save_path, name=f'best.pth')
         print(f"Best model saved to {best_save_path}")
         print(f"Best average IoU: {best_avg_iou:.4f}")
     else:
