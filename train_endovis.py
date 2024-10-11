@@ -76,11 +76,9 @@ print(f"Training model for {total_iterations} total iterations and {iteration_pe
 ## Train Loop
 model.train()
 
-iter_pbar = tqdm(range(1, iteration_per_gpu+1), disable=local_rank!=0)
-for iteration in iter_pbar:
+iter_pbar = tqdm(train_loader, disable=local_rank!=0)
+for iteration, data in enumerate(iter_pbar, start=1):
     train_sampler.set_epoch(iteration) 
-
-    data = next(iter(train_loader))
     total_loss: float = model.do_pass(data, iteration*world_size)
 
     # update progress bar
