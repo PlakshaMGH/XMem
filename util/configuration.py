@@ -160,7 +160,7 @@ class Config:
     num_workers: int = 8
     max_num_obj: int = 1
 
-    batch_size: int = 8
+    batch_size: int = 4
     end_warm: int = 700
     finetune: int = 0
     num_iterations: int = 2_500
