@@ -166,7 +166,7 @@ class XMemTrainer:
             return
         
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        model_path = f'{self.save_path}_{it}.pth'
+        model_path = f'{self.save_path}/iteration_{it:06d}.pth'
         torch.save(self.XMem.module.state_dict(), model_path)
         print(f'Network saved to {model_path}.')
 
@@ -176,7 +176,7 @@ class XMemTrainer:
             return
 
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        checkpoint_path = f'{self.save_path}_checkpoint_{it}.pth'
+        checkpoint_path = f'{self.save_path}/checkpoint_{it:06d}.pth'
         checkpoint = { 
             'it': it,
             'network': self.XMem.module.state_dict(),
