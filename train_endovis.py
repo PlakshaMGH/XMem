@@ -36,6 +36,7 @@ if local_rank == 0:
 else:
     # Construct model for other ranks
     model = XMemTrainer(config.to_dict(), local_rank=local_rank, world_size=world_size).train()
+    logger = None
 
 # loading pretrained weights
 model.load_network("./artifacts/XMem.pth")
@@ -89,6 +90,7 @@ model.save_network(iteration)
 distributed.destroy_process_group()
 
 # end the logger
-logger.finish()
+if logger:
+    logger.finish()
 
 print("Training complete!")
