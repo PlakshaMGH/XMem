@@ -31,7 +31,7 @@ if local_rank == 0:
 
     # Construct the rank 0 model
     model = XMemTrainer(config.to_dict(), logger=logger, 
-                    save_path=Path('saves', long_id, long_id) if long_id is not None else None, 
+                    save_path=Path('saves', long_id) if long_id is not None else None, 
                     local_rank=local_rank, world_size=world_size).train()
 else:
     # Construct model for other ranks
