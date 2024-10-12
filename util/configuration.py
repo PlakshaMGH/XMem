@@ -196,8 +196,8 @@ class Config:
 config = Config()
 
 
-def init_logger(long_id=True, existing_run=None):
-    if long_id:
+def init_logger(do_logging=True, existing_run=None):
+    if do_logging:
         long_id = "%s_%s" % (
             datetime.datetime.now().strftime("%b%d_%H.%M"),
             config.exp_id,
@@ -206,9 +206,9 @@ def init_logger(long_id=True, existing_run=None):
         long_id = None
 
     if existing_run is not None:
-        logger = WandbLogger(None, None, project_name="XMem_Generalization").get_run(existing_run)
+        logger = WandbLogger(run_name=None, id=None, project_name="XMem_Generalization").get_run(existing_run)
     else:
-        logger = WandbLogger(config.exp_id, long_id, project_name="XMem_Generalization")
+        logger = WandbLogger(run_name=config.exp_id, id=long_id, project_name="XMem_Generalization")
 
     logger.log_string("hyperparams", str(config))
     return logger, long_id

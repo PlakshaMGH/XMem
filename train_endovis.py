@@ -27,11 +27,11 @@ print(f'I am rank {local_rank} in this world of size {world_size}!')
 # Model related
 if local_rank == 0:
     # Logging
-    logger, long_id = init_logger(long_id=True, existing_run=None)
+    logger, long_id = init_logger(do_logging=True, existing_run=None)
 
     # Construct the rank 0 model
     model = XMemTrainer(config.to_dict(), logger=logger, 
-                    save_path=Path('saves', long_id) if long_id is not None else None, 
+                    save_path=Path('saves', long_id, 'iteration') if long_id is not None else None, 
                     local_rank=local_rank, world_size=world_size).train()
 else:
     # Construct model for other ranks

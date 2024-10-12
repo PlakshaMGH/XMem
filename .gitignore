@@ -7,4 +7,4 @@ __pycache__
 # secrets
 .secrets
 
-setup.sh
+run.sh

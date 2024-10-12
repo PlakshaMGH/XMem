@@ -20,7 +20,7 @@ im_normalization = transforms.Normalize(
     std=[0.229, 0.224, 0.225]
 )
 
-logger, _ = init_logger(long_id=False, existing_run=None)
+logger, _ = init_logger(do_logging=False, existing_run=True) # Set to True to resume logging on latest run
 
 def resize_mask(mask, size, num_obj):
     mask = mask.unsqueeze(0).unsqueeze(0)
