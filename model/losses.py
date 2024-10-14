@@ -55,14 +55,22 @@ class LossComputer:
         b, t = data['rgb'].shape[:2]
 
         losses['total_loss'] = 0
-        for ti in range(1, t):
+        losses['total_dice_loss'] = 0
+        losses['total_ce_loss'] = 0
+        for ti in range(1, t): # 0th frame has gt_mask, so we skip it
             for bi in range(b):
                 loss, p = self.bce(data[f'logits_{ti}'][bi:bi+1, :num_objects[bi]+1], data['cls_gt'][bi:bi+1,ti,0], it)
                 losses['p'] += p / b / (t-1)
                 losses[f'ce_loss_{ti}'] += loss / b
+                losses['total_ce_loss'] += loss / b
 
+            # Add cross entropy loss to total loss
             losses['total_loss'] += losses['ce_loss_%d'%ti]
+
             losses[f'dice_loss_{ti}'] = dice_loss(data[f'masks_{ti}'], data['cls_gt'][:,ti,0])
+            losses['total_dice_loss'] += losses[f'dice_loss_{ti}']
+
+            # Add dice loss to total loss
             losses['total_loss'] += losses[f'dice_loss_{ti}']
 
         return losses

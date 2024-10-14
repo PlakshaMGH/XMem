@@ -59,6 +59,7 @@ class VideoReader(Dataset):
         data = {}
         info['frame'] = frame
         info['save'] = (self.to_save is None) or (frame[:-4] in self.to_save)
+        info['idx'] = idx
 
         im_path = path.join(self.image_dir, frame)
         img = Image.open(im_path).convert('RGB')

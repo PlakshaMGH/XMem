@@ -4,101 +4,66 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
-from PIL import Image
-from skimage import io
-from torchvision import transforms
-from torchvision.transforms.functional import InterpolationMode
 
-from util.configuration import config, init_logger
+from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
+
+from util.configuration import test_config, init_logger
 from model.network import XMem
+from inference.data.mask_mapper import MaskMapper
+from inference.data.video_reader import VideoReader
 from inference.inference_core import InferenceCore
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-im_normalization = transforms.Normalize(
-    mean=[0.485, 0.456, 0.406],
-    std=[0.229, 0.224, 0.225]
-)
-
 logger, _ = init_logger(do_logging=False, existing_run=True) # Set to True to resume logging on latest run
+mapper = MaskMapper()
 
-def resize_mask(mask, size, num_obj):
-    mask = mask.unsqueeze(0).unsqueeze(0)
-    h, w = mask.shape[-2:]
-    min_hw = min(h, w)
-    mask = F.interpolate(mask, (int(h/min_hw*size), int(w/min_hw*size)), 
-                mode='nearest')
-    mask = mask.squeeze(0,1).long()
-    return F.one_hot(mask, num_classes=num_obj+1).permute(2,0,1).float()
+def test_patient(frames_path, masks_path, processor, size=-1):
+    vid_reader = VideoReader(frames_path, frames_path, masks_path, size=size)
 
-def calculate_iou(pred, target):
-    intersection = np.logical_and(pred, target)
-    union = np.logical_or(pred, target)
-    iou = np.sum(intersection) / np.sum(union)
-    return iou
-
-def test_patient(frames_path, masks_path, processor, size=-1, num_obj=1):
-    image_paths = sorted(frames_path.glob('*.png'))
-    mask_paths = sorted(masks_path.glob('*.png'))
-    
     total_iou = 0
-    num_frames = len(image_paths)
+    num_frames = len(vid_reader)
+    iou_list = []
+    dice_list = []
 
-    if size < 0:
-        im_transform = transforms.Compose([
-            transforms.ToTensor(),
-            im_normalization,
-        ])
-    else:
-        im_transform = transforms.Compose([
-            transforms.ToTensor(),
-            im_normalization,
-            transforms.Resize(size, interpolation=InterpolationMode.BILINEAR, antialias=False),
-        ])
+    for data in tqdm(vid_reader, total=num_frames):
+        frame = data['rgb'].cuda()
+        mask = data['mask']
+        info = data['info']
+        frame_name = info['frame']
+        shape = info['shape'] # original size
+        need_resize = info['need_resize']
+        idx = info['idx']
 
-    # First frame
-    first_frame = io.imread(image_paths[0])
-    first_mask = io.imread(mask_paths[0])
-    og_shape = first_frame.shape[:2]
+        # Map possibly non-continuous labels to continuous ones
+        mask, labels = mapper.convert_mask(mask)
+        mask = torch.Tensor(mask).cuda()
+        if need_resize:
+            # resize_mask requires a batch dimension (B*C*H*W) C->classes
+            mask = vid_reader.resize_mask(mask.unsqueeze(0))[0]
 
-    frame_torch = im_transform(first_frame).to(device)
-    
-    if size > 0:
-        first_mask = torch.tensor(first_mask).to(device)
-        first_mask = resize_mask(first_mask, size, num_obj)
-    else:
-        first_mask = torch.from_numpy(first_mask).unsqueeze(0).float().to(device)
-    
-    first_mask = first_mask[1:]  # Remove background
-    
-    with torch.no_grad():
-        prediction = processor.step(frame_torch, first_mask)
-    
-    # Calculate IoU for first frame
-    pred_mask = torch.argmax(prediction, dim=0).cpu().numpy()
-    true_mask = io.imread(mask_paths[0])
-    iou = calculate_iou(pred_mask, true_mask)
-    total_iou += iou
+        if idx == 0:
+            processor.set_all_labels(list(mapper.remappings.values()))
+            mask_to_use = mask
+            labels_to_use = labels
+            # IoU and Dice init
+            IoU = MeanIoU(num_classes=len(labels_to_use))
+            Dice = GeneralizedDiceScore(num_classes=len(labels_to_use))
+        else:
+            mask_to_use = None
+            labels_to_use = None
 
-    # Process remaining frames
-    for image_path, mask_path in tqdm(zip(image_paths[1:], mask_paths[1:]), total=num_frames-1):
-        frame = io.imread(image_path)
-        frame_torch = im_transform(frame).to(device)
-        
+        # Run the model on this frame
         with torch.no_grad():
-            prediction = processor.step(frame_torch)
+            prob = processor.step(frame, mask_to_use, labels_to_use, end=(idx==num_frames-1))
         
         # Upsample to original size if needed
-        if size > 0:
-            prediction = F.interpolate(prediction.unsqueeze(1), og_shape, mode='nearest', align_corners=False)[:,0]
-        
-        pred_mask = torch.argmax(prediction, dim=0).cpu().numpy()
-        true_mask = io.imread(mask_path)
-        
-        iou = calculate_iou(pred_mask, true_mask)
-        total_iou += iou
+        if need_resize:
+            prob = F.interpolate(prob.unsqueeze(1), shape, mode='bilinear', align_corners=False)[:,0]
 
-    return total_iou / num_frames
+        # Calculate IoU and Dice
+        iou_list.append(IoU(prob, mask))
+        dice_list.append(Dice(prob, mask))
+
+    return iou_list, dice_list
 
 def main():
     # Load the latest model
@@ -124,18 +89,16 @@ def main():
         print(f"Testing model: {model_file}")
         
         # Load model
-        model = XMem(config.to_dict()).to(device).eval()
-        model_weights = torch.load(model_file)
-        model.load_weights(model_weights, init_as_zero_if_needed=True)
-
-        processor = InferenceCore(model, config=config.to_dict())
+        network = XMem(test_config.to_dict(), model_file).eval().to(device)
+        processor = InferenceCore(network, config=test_config.to_dict())
 
         # Test for each patient
         patient_ious = []
         for patient_id in TEST_VIDEOS_PATH.iterdir():
             if patient_id.is_dir():
-                frames_path = TEST_VIDEOS_PATH / patient_id
-                masks_path = TEST_MASKS_PATH / patient_id
+                frames_path = TEST_VIDEOS_PATH / patient_id.name
+                masks_path = TEST_MASKS_PATH / patient_id.name
+                print(f"Testing patient {patient_id.name}")
                 
                 patient_iou = test_patient(frames_path, masks_path, processor)
                 patient_ious.append(patient_iou)

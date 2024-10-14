@@ -55,11 +55,11 @@ class WandbLogger:
         
     def get_run(self, existing_run=None):
         
-        if existing_run is not None:
-            return wandb.init(project=self.project_name, name=existing_run, resume='must')
+        if existing_run and isinstance(existing_run, str):
+            return wandb.init(project=self.project_name, id=existing_run, resume='must')
         
-        if self.logger is not None:
-            return self.logger
+        if self.no_log is False: # logging is already initialized
+            return self
         
         wandb_dir = os.path.join(os.getcwd(), 'wandb')
         if not os.path.exists(wandb_dir):
@@ -74,14 +74,15 @@ class WandbLogger:
         
         # find the latest run
         latest_run = max(runs, key=lambda x: os.path.getmtime(os.path.join(wandb_dir, x)))
+        latest_run_id = latest_run.split('-')[-1]
 
         # resuming the latest run
         print(f"Resuming run: {latest_run}")
-        self.logger = wandb.init(project=self.project_name, name=latest_run, resume='must')
+        self.logger = wandb.init(project=self.project_name, id=latest_run_id, resume='must')
 
         self.no_log = False
 
-        return self.logger
+        return self
 
     def log_scalar(self, tag, x, step):
         if self.no_log:

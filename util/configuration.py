@@ -161,14 +161,14 @@ class Config:
     max_num_obj: int = 1
 
     batch_size: int = 4
-    end_warm: int = 700
+    start_warm: int = 250
+    end_warm: int = 500
     finetune: int = 0
     num_iterations: int = 2_500
     lr: float = 1e-5
     num_frames: int = 8 # default in the paper for training step on youtube videos
     num_ref_frames: int = 3
     max_skip_value: int = 20
-    start_warm: int = 200
     steps: List = field(default_factory=lambda: [3000])
 
     save_checkpoint_interval: int = 10_000
@@ -193,8 +193,23 @@ class Config:
     def to_dict(self):
         return self.__dict__
 
-config = Config()
+@dataclass
+class TestConfig:
+    top_k: int = 30
+    mem_every: int = 5
+    deep_update_every: int = -1
+    enable_long_term: bool = True
+    enable_long_term_count_usage: bool = True
+    num_prototypes: int = 128
+    min_mid_term_frames: int = 5
+    max_mid_term_frames: int = 10
+    max_long_term_elements: int = 10_000
 
+    def to_dict(self):
+        return self.__dict__
+
+config = Config()
+test_config = TestConfig()
 
 def init_logger(do_logging=True, existing_run=None):
     if do_logging:
