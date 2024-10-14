@@ -63,6 +63,7 @@ class VideoReader(Dataset):
 
         im_path = path.join(self.image_dir, frame)
         img = Image.open(im_path).convert('RGB')
+        data['original_img'] = np.array(img)
 
         if self.image_dir == self.size_dir:
             shape = np.array(img).shape[:2]
