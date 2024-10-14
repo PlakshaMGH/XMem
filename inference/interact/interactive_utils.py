@@ -1,184 +1,166 @@
-import os
-from pathlib import Path
+# Modifed from https://github.com/seoungwugoh/ivs-demo
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
-from tqdm import tqdm
-import cv2
+from util.palette import davis_palette
+from dataset.range_transform import im_normalization
 
-from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
+def image_to_torch(frame: np.ndarray, device='cuda'):
+    # frame: H*W*3 numpy array
+    frame = frame.transpose(2, 0, 1)
+    frame = torch.from_numpy(frame).float().to(device)/255
+    frame_norm = im_normalization(frame)
+    return frame_norm, frame
 
-from util.configuration import test_config, init_logger
-from model.network import XMem
-from inference.data.mask_mapper import MaskMapper
-from inference.data.video_reader import VideoReader
-from inference.inference_core import InferenceCore
+def torch_prob_to_numpy_mask(prob):
+    mask = torch.max(prob, dim=0).indices
+    mask = mask.cpu().numpy().astype(np.uint8)
+    return mask
 
-# logger, _ = init_logger(do_logging=False, existing_run=True) # Set to True to resume logging on latest run
-mapper = MaskMapper()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def index_numpy_to_one_hot_torch(mask, num_classes):
+    mask = torch.from_numpy(mask).long()
+    return F.one_hot(mask, num_classes=num_classes).permute(2, 0, 1).float()
 
-def torch_prob_to_one_hot_torch(prob, num_classes):
-    mask = torch.argmax(prob, dim=0)
-    numpy_mask = mask.cpu().numpy()
-    mask = F.one_hot(mask, num_classes=num_classes+1).permute(2, 0, 1)
-    return mask[1:], numpy_mask
+"""
+Some constants fro visualization
+"""
+try:
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+except:
+    device = torch.device("cpu")
 
-def color_map(pred_mask: np.ndarray, gt_mask: np.ndarray):
-    # Intersection of pred_mask and gt_mask: True Positive
-    true_positive = np.bitwise_and(pred_mask, gt_mask)
-    # Only Pred not GT: False Positive
-    false_positive = np.bitwise_and(pred_mask, np.bitwise_not(gt_mask))
-    # Only GT not Pred: False Negative
-    false_negative = np.bitwise_and(np.bitwise_not(pred_mask), gt_mask)
+color_map_np = np.frombuffer(davis_palette, dtype=np.uint8).reshape(-1, 3).copy()
+# scales for better visualization
+color_map_np = (color_map_np.astype(np.float32)*1.5).clip(0, 255).astype(np.uint8)
+color_map = color_map_np.tolist()
+color_map_torch = torch.from_numpy(color_map_np).to(device) / 255
+grayscale_weights = np.array([[0.3,0.59,0.11]]).astype(np.float32)
+grayscale_weights_torch = torch.from_numpy(grayscale_weights).to(device).unsqueeze(0)
 
-    # Colors
-    green = (0, 255, 0)
-    red = (255, 0, 0)
-    blue = (0, 0, 255)
-
-    # Creating Color Map Image
-    h,w = pred_mask.shape[:2]
-    color_map = np.zeros((h,w,3), dtype=np.uint8)
-    color_map[true_positive!=0] = green
-    color_map[false_positive!=0] = red
-    color_map[false_negative!=0] = blue
-
-    return color_map
-
-def create_video_from_frames(video_frames):
-    video_path = f"./saved_videos/video.mp4"
-    sample_frame = list(video_frames.values())[0]
-    size1, size2, _ = sample_frame.shape
-    out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'mp4v'), 1, (size2, size1), True)
-    for frame_name, frame in sorted(video_frames.items(), key=lambda x: x[0]):
-        out_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        out.write(out_img)
-    out.release()
-
-
-def test_patient(frames_path, masks_path, processor, size=-1):
-    vid_reader = VideoReader(frames_path, frames_path, masks_path, size=size, use_all_mask=True)
-
-    total_iou = 0
-    num_frames = len(vid_reader)
-    iou_list = []
-    dice_list = []
-    video_frames = {}
-    pred_masks = []
-    gt_masks = []
-
-    for data in tqdm(vid_reader, total=num_frames):
-        frame = data['rgb'].to(device)
-        original_mask = data['mask']
-        info = data['info']
-        frame_name = info['frame']
-        shape = info['shape'] # original size
-        need_resize = info['need_resize']
-        idx = info['idx']
-
-        # Map possibly non-continuous labels to continuous ones
-        mask, labels = mapper.convert_mask(original_mask, exhaustive=True)
-        mask = torch.Tensor(mask).to(device)
-        if need_resize:
-            # resize_mask requires a batch dimension (B*C*H*W) C->classes
-            resized_mask = vid_reader.resize_mask(mask.unsqueeze(0))[0]
+def get_visualization(mode, image, mask, layer, target_object):
+    if mode == 'fade':
+        return overlay_davis(image, mask, fade=True)
+    elif mode == 'davis':
+        return overlay_davis(image, mask)
+    elif mode == 'light':
+        return overlay_davis(image, mask, 0.9)
+    elif mode == 'popup':
+        return overlay_popup(image, mask, target_object)
+    elif mode == 'layered':
+        if layer is None:
+            print('Layer file not given. Defaulting to DAVIS.')
+            return overlay_davis(image, mask)
         else:
-            resized_mask = mask
+            return overlay_layer(image, mask, layer, target_object)
+    else:
+        raise NotImplementedError
 
-        if idx == 0:
-            processor.set_all_labels(list(mapper.remappings.values()))
-            mask_to_use = resized_mask
-            labels_to_use = labels
-            # IoU and Dice init
-            IoU = MeanIoU(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
-            Dice = GeneralizedDiceScore(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
+def get_visualization_torch(mode, image, prob, layer, target_object):
+    if mode == 'fade':
+        return overlay_davis_torch(image, prob, fade=True)
+    elif mode == 'davis':
+        return overlay_davis_torch(image, prob)
+    elif mode == 'light':
+        return overlay_davis_torch(image, prob, 0.9)
+    elif mode == 'popup':
+        return overlay_popup_torch(image, prob, target_object)
+    elif mode == 'layered':
+        if layer is None:
+            print('Layer file not given. Defaulting to DAVIS.')
+            return overlay_davis_torch(image, prob)
         else:
-            mask_to_use = None
-            labels_to_use = None
+            return overlay_layer_torch(image, prob, layer, target_object)
+    else:
+        raise NotImplementedError
 
-        # Run the model on this frame
-        with torch.no_grad():
-            prob = processor.step(frame, mask_to_use, labels_to_use, end=(idx==num_frames-1))
+def overlay_davis(image, mask, alpha=0.5, fade=False):
+    """ Overlay segmentation on top of RGB image. from davis official"""
+    im_overlay = image.copy()
+    colored_mask = color_map_np[mask]
+    foreground = image*alpha + (1-alpha)*colored_mask
+    binary_mask = (mask > 0)
+    # Compose image
+    im_overlay[binary_mask] = foreground[binary_mask]
+    if fade:
+        im_overlay[~binary_mask] = im_overlay[~binary_mask] * 0.6
+    return im_overlay.astype(image.dtype)
 
-        # Upsample to original size if needed
-        if need_resize:
-            prob = F.interpolate(prob.unsqueeze(1), shape, mode='bilinear', align_corners=False)[:,0]
+def overlay_popup(image, mask, target_object):
+    # Keep foreground colored. Convert background to grayscale.
+    im_overlay = image.copy()
+    binary_mask = ~(np.isin(mask, target_object))
+    colored_region = (im_overlay[binary_mask]*grayscale_weights).sum(-1, keepdims=-1)
+    im_overlay[binary_mask] = colored_region
+    return im_overlay.astype(image.dtype)
 
-        prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob, len(processor.all_labels))
-        pred_masks.append(prob.cpu())
-        gt_masks.append(mask.cpu())
+def overlay_layer(image, mask, layer, target_object):
+    # insert a layer between foreground and background
+    # The CPU version is less accurate because we are using the hard mask
+    # The GPU version has softer edges as it uses soft probabilities
+    obj_mask = (np.isin(mask, target_object)).astype(np.float32)[:, :, np.newaxis]
+    layer_alpha = layer[:, :, 3].astype(np.float32)[:, :, np.newaxis] / 255
+    layer_rgb = layer[:, :, :3]
+    background_alpha = np.maximum(obj_mask, layer_alpha)
+    im_overlay = (image * (1 - background_alpha) + layer_rgb * (1 - obj_mask) * layer_alpha +
+                  image * obj_mask).clip(0, 255)
+    return im_overlay.astype(image.dtype)
 
-        color_mask = color_map(prob_numpy_mask, original_mask)
-        video_frames[frame_name] = cv2.addWeighted(data['original_img'], 1, color_mask, 0.5, 0)
+def overlay_davis_torch(image, mask, alpha=0.5, fade=False):
+    """ Overlay segmentation on top of RGB image. from davis official"""
+    # Changes the image in-place to avoid copying
+    image = image.permute(1, 2, 0)
+    im_overlay = image
+    mask = torch.max(mask, dim=0).indices
+    colored_mask = color_map_torch[mask]
+    foreground = image*alpha + (1-alpha)*colored_mask
+    binary_mask = (mask > 0)
+    # Compose image
+    im_overlay[binary_mask] = foreground[binary_mask]
+    if fade:
+        im_overlay[~binary_mask] = im_overlay[~binary_mask] * 0.6
+    im_overlay = (im_overlay*255).cpu().numpy()
+    im_overlay = im_overlay.astype(np.uint8)
+    return im_overlay
 
-    create_video_from_frames(video_frames)
-
-    # Calculate IoU and Dice
-    pred_masks = torch.stack(pred_masks, dim=0)
-    gt_masks = torch.stack(gt_masks, dim=0)
-    meanIoU = IoU(pred_masks, gt_masks)
-    meanDice = Dice(pred_masks, gt_masks)
-
-    print(meanIoU)
-    print(meanDice)
-
-    return meanIoU.item(), meanDice.item()
-def main():
-    # Load the latest model
-    saves_dir = Path("./saves")
-    model_dirs = sorted([d for d in saves_dir.iterdir() if d.is_dir()], reverse=True)
-    if not model_dirs:
-        raise ValueError("No model directories found in ./saves")
+def overlay_popup_torch(image, mask, target_object):
+    # Keep foreground colored. Convert background to grayscale.
+    image = image.permute(1, 2, 0)
     
-    latest_model_dir = model_dirs[0]
-    model_files = sorted(latest_model_dir.glob("*.pth"), key=os.path.getmtime, reverse=False)
-    
-    if not model_files:
-        raise ValueError(f"No .pth files found in {latest_model_dir}")
+    if len(target_object) == 0:
+        obj_mask = torch.zeros_like(mask[0]).unsqueeze(2)
+    else:
+        # I should not need to convert this to numpy.
+        # uUsing list works most of the time but consistently fails
+        # if I include first object -> exclude it -> include it again.
+        # I check everywhere and it makes absolutely no sense.
+        # I am blaming this on PyTorch and calling it a day
+        obj_mask = mask[np.array(target_object,dtype=np.int32)].sum(0).unsqueeze(2)
+    gray_image = (image*grayscale_weights_torch).sum(-1, keepdim=True)
+    im_overlay = obj_mask*image + (1-obj_mask)*gray_image
+    im_overlay = (im_overlay*255).cpu().numpy()
+    im_overlay = im_overlay.astype(np.uint8)
+    return im_overlay
 
-    best_model_path = None
-    best_avg_iou = 0
-
-    MAIN_FOLDER = Path("../data")
-    TEST_VIDEOS_PATH = MAIN_FOLDER / "frames/test"
-    TEST_MASKS_PATH = MAIN_FOLDER / "masks/test/binary_masks"
-
-    for model_file in model_files:
-        print(f"Testing model: {model_file}")
-        
-        # Load model
-        network = XMem(test_config.to_dict(), model_file).eval().to(device)
-        processor = InferenceCore(network, config=test_config.to_dict())
-
-        # Test for each patient
-        patient_ious = []
-        for patient_id in TEST_VIDEOS_PATH.iterdir():
-            if patient_id.is_dir():
-                frames_path = TEST_VIDEOS_PATH / patient_id.name
-                masks_path = TEST_MASKS_PATH / patient_id.name
-                print(f"Testing patient {patient_id.name}")
-                
-                patient_iou, patient_dice = test_patient(frames_path, masks_path, processor, size=384)
-                patient_ious.append(patient_iou)
-                print(f"Patient {patient_id.name} IoU: {patient_iou:.4f}")
-
-        avg_iou = np.mean(patient_ious)
-        print(f"Average IoU: {avg_iou:.4f}")
-
-        if avg_iou > best_avg_iou:
-            best_avg_iou = avg_iou
-            best_model_path = model_file
-
-    # Save the best model
-    # if best_model_path:
-    #     best_save_path = saves_dir / "best.pth"
-    #     torch.save(torch.load(best_model_path), best_save_path)
-    #     logger.log_model(best_save_path, name=f'best.pth')
-    #     print(f"Best model saved to {best_save_path}")
-    #     print(f"Best average IoU: {best_avg_iou:.4f}")
-    # else:
-    #     print("No best model found.")
-
-if __name__ == "__main__":
-    main()
+def overlay_layer_torch(image, prob, layer, target_object):
+    # insert a layer between foreground and background
+    # The CPU version is less accurate because we are using the hard mask
+    # The GPU version has softer edges as it uses soft probabilities
+    image = image.permute(1, 2, 0)
+    if len(target_object) == 0:
+        obj_mask = torch.zeros_like(prob[0]).unsqueeze(2)
+    else:
+        # TODO: figure out why we need to convert this to numpy array
+        obj_mask = prob[np.array(target_object, dtype=np.int32)].sum(0).unsqueeze(2)
+    layer_alpha = layer[:, :, 3].unsqueeze(2)
+    layer_rgb = layer[:, :, :3]
+    background_alpha = torch.maximum(obj_mask, layer_alpha)
+    im_overlay = (image * (1 - background_alpha) + layer_rgb * (1 - obj_mask) * layer_alpha +
+                  image * obj_mask).clip(0, 1)
+    im_overlay = (im_overlay * 255).cpu().numpy()
+    im_overlay = im_overlay.astype(np.uint8)
+    return im_overlay
