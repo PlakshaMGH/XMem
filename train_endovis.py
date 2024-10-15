@@ -85,8 +85,6 @@ for iteration, data in enumerate(iter_pbar, start=1):
     # update progress bar
     iter_pbar.set_postfix(total_loss=total_loss)
 
-model.save_network(iteration)
-
 distributed.destroy_process_group()
 
 # end the logger

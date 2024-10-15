@@ -166,7 +166,7 @@ class XMemTrainer:
             return
         
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        model_path = f'{self.save_path}/iteration_{it:06d}.pth'
+        model_path = f'{self.save_path}_{it:06d}.pth'
         torch.save(self.XMem.module.state_dict(), model_path)
         print(f'Network saved to {model_path}.')
 
@@ -176,7 +176,7 @@ class XMemTrainer:
             return
 
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        checkpoint_path = f'{self.save_path}/checkpoint_{it:06d}.pth'
+        checkpoint_path = f'{self.save_path}_{it:06d}.pth'
         checkpoint = { 
             'it': it,
             'network': self.XMem.module.state_dict(),
@@ -211,7 +211,7 @@ class XMemTrainer:
     def load_network(self, path):
         # This method loads only the network weight and should be used to load a pretrained model
         map_location = 'cuda:%d' % self.local_rank
-        src_dict = torch.load(path, map_location={'cuda:0': map_location})
+        src_dict = torch.load(path, map_location={'cuda:0': map_location}, weights_only=True)
 
         self.load_network_in_memory(src_dict)
         print(f'Network weight loaded from {path}')

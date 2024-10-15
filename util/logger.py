@@ -88,7 +88,7 @@ class WandbLogger:
         if self.no_log:
             warnings.warn('W&B Logging has been disabled.')
             return
-        wandb.log({tag: x}, step=step)
+        wandb.log({tag: x, "iteration": step})
 
     def log_metrics(self, l1_tag, l2_tag, val, step, f=None):
         tag = f"{l1_tag}/{l2_tag}"
@@ -106,14 +106,14 @@ class WandbLogger:
         x = detach_to_cpu(x)
         x = self.inv_im_trans(x)
         x = tensor_to_numpy(x)
-        wandb.log({tag: wandb.Image(x)}, step=step)
+        wandb.log({tag: wandb.Image(x), "iteration": step})
 
     def log_cv2(self, tag, x, step):
         if self.no_log:
             warnings.warn('W&B Logging has been disabled.')
             return
         # x = x.transpose((2, 0, 1))  # Convert HWC to CHW
-        wandb.log({tag: wandb.Image(x)}, step=step)
+        wandb.log({tag: wandb.Image(x), "iteration": step})
 
     def log_seg(self, tag, x, step):
         if self.no_log:
@@ -122,7 +122,7 @@ class WandbLogger:
         x = detach_to_cpu(x)
         x = self.inv_seg_trans(x)
         x = tensor_to_numpy(x)
-        wandb.log({tag: wandb.Image(x)}, step=step)
+        wandb.log({tag: wandb.Image(x), "iteration": step})
 
     def log_gray(self, tag, x, step):
         if self.no_log:
@@ -130,7 +130,7 @@ class WandbLogger:
             return
         x = detach_to_cpu(x)
         x = tensor_to_numpy(x)
-        wandb.log({tag: wandb.Image(x, mode='L')}, step=step)
+        wandb.log({tag: wandb.Image(x, mode='L'), "iteration": step})
 
     def log_string(self, tag, x):
         print(f"{tag}: {x}")
