@@ -1,10 +1,12 @@
 import os
+import re
 from pathlib import Path
 import torch
 import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 import cv2
+import typer
 
 from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
 
@@ -122,7 +124,10 @@ def test_patient(frames_path, masks_path, processor, size=-1):
 
     return meanIoU.item(), meanDice.item()
 
-def main():
+def main(subset_string: str = "9,10"):
+
+    subset_list = [int(i) for i in subset_string.split(',')]
+
     # Load the latest model
     saves_dir = Path("./saves")
     model_dirs = sorted([d for d in saves_dir.iterdir() if d.is_dir()], reverse=True)
@@ -153,7 +158,8 @@ def main():
         # Test for each patient
         patient_ious = []
         for patient_id in TEST_VIDEOS_PATH.iterdir():
-            if patient_id.is_dir():
+            number = int(re.search(r'\d+', patient_id.name).group())
+            if patient_id.is_dir() and (number in subset_list):
                 frames_path = TEST_VIDEOS_PATH / patient_id.name
                 masks_path = TEST_MASKS_PATH / patient_id.name
                 print(f"Testing patient {patient_id.name}")
@@ -182,4 +188,4 @@ def main():
         print("No best model found.")
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)
