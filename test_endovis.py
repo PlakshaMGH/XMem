@@ -180,10 +180,7 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
     # Save the best model
     if best_model_path:
         model_name = f"best_{train_set}_{best_avg_iou*100:.2f}.pth"
-        best_save_path = saves_dir / model_name
-        torch.save(torch.load(best_model_path), best_save_path, weights_only=True)
-        logger.log_model(best_save_path, name=model_name)
-        print(f"Best model saved to {best_save_path}")
+        logger.log_model(best_model_path, name=model_name)
         print(f"Best average IoU: {best_avg_iou:.4f}")
     else:
         print("No best model found.")
