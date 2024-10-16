@@ -211,20 +211,17 @@ class TestConfig:
 config = Config()
 test_config = TestConfig()
 
-def init_logger(do_logging=True, existing_run=None, new_run_name=None, config=config):
-    if do_logging and new_run_name is not None:
-        long_id = "%s_%s" % (
-            datetime.datetime.now().strftime("%b%d_%H.%M"),
-            new_run_name,
-        )
-    else:
-        long_id = None
+def init_logger(new_run_name=None, run_id=None, project_name="DataVar_XMem_E17_Type", config=config, do_logging=True):
 
-    if existing_run is not None:
-        logger = WandbLogger(run_name=None, id=None, project_name="DataVar_XMem_E17_Type").get_run(existing_run)
+    if new_run_name:
+        logger = WandbLogger(run_name=new_run_name, project_name=project_name, run_id=run_id, do_logging=do_logging)
+    elif run_id:
+        # Don't create new run, do_logging=False, new_run_name wont be used
+        logger = WandbLogger(run_name=new_run_name, project_name=project_name, run_id=run_id, do_logging=False).get_run(run_id)
     else:
-        logger = WandbLogger(run_name=new_run_name, id=long_id, project_name="DataVar_XMem_E17_Type")
+        logger = WandbLogger(run_name=None, id=None, project_name=project_name, do_logging=False)
 
     logger.log_string("hyperparams", str(config))
-    return logger, long_id
+    
+    return logger
     

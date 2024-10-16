@@ -16,7 +16,6 @@ from inference.data.mask_mapper import MaskMapper
 from inference.data.video_reader import VideoReader
 from inference.inference_core import InferenceCore
 
-logger, _ = init_logger(do_logging=False, existing_run=True) # Set to True to resume logging on latest run
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def torch_prob_to_one_hot_torch(prob, num_classes):
@@ -152,8 +151,9 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
 
     return meanIoU, meanDice, video_frames
 
-def main(subset_string: str = "9,10", train_set: str = "1"):
+def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = "e17type1", project_name: str = "DataVar_XMem_E17_Type"):
 
+    logger = init_logger(None, run_id, project_name, test_config, do_logging=False)
     subset_list = [int(i) for i in subset_string.split(',')]
 
     # Load the latest model

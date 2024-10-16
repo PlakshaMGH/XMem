@@ -17,13 +17,11 @@ def fix_width_trunc(x):
     return ('{:.9s}'.format('{:0.9f}'.format(x)))
 
 class WandbLogger:
-    def __init__(self, run_name, id, project_name):
+    def __init__(self, run_name, project_name, run_id, do_logging=True):
         self.project_name = project_name
         self.run_name = run_name
-        if self.run_name == 'NULL':
-            self.run_name = 'DEBUG'
 
-        if id is None:
+        if not do_logging:
             self.no_log = True
             warnings.warn('W&B Logging has been disabled.')
         else:
@@ -33,6 +31,7 @@ class WandbLogger:
             self.logger = wandb.init(
                 project=project_name,  # Replace with your project name
                 name=run_name,
+                id=run_id,
                 reinit=True  # Allows multiple runs within the same script
             )
 
@@ -53,37 +52,15 @@ class WandbLogger:
     def existing_run_name(self):
         return self.logger.name
         
-    def get_run(self, existing_run=None):
+    def get_run(self, existing_run_id=None):
         
-        if existing_run and isinstance(existing_run, str):
-            return wandb.init(project=self.project_name, id=existing_run, resume='must')
-        
-        if self.no_log is False: # logging is already initialized
+        if existing_run_id and isinstance(existing_run_id, str):
+            self.logger = wandb.init(project=self.project_name, id=existing_run_id, resume='must')
+            return self
+        else:
+            warnings.warn('No existing run ID provided...')
             return self
         
-        wandb_dir = os.path.join(os.getcwd(), 'wandb')
-        if not os.path.exists(wandb_dir):
-            # no wandb folder exists, create new run
-            warnings.warn('W&B directory does not exist...')
-            return None
-        
-        runs = [d for d in os.listdir(wandb_dir) if os.path.isdir(os.path.join(wandb_dir, d))]
-        if not runs:
-            warnings.warn('No runs found in W&B directory...')
-            return None
-        
-        # find the latest run
-        latest_run = max(runs, key=lambda x: os.path.getmtime(os.path.join(wandb_dir, x)))
-        latest_run_id = latest_run.split('-')[-1]
-
-        # resuming the latest run
-        print(f"Resuming run: {latest_run}")
-        self.logger = wandb.init(project=self.project_name, id=latest_run_id, resume='must')
-
-        self.no_log = False
-
-        return self
-
     def log_scalar(self, tag, x, step):
         if self.no_log:
             warnings.warn('W&B Logging has been disabled.')

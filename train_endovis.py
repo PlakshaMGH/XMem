@@ -13,7 +13,8 @@ from transforms import get_transforms
 from util.configuration import config, init_logger
 from model.trainer import XMemTrainer
 
-def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1"):
+def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
+         run_id: str = "abcd1xx4", project_name: str = "DataVar_XMem_E17_Type"):
 
     # Init distributed environment
     distributed.init_process_group(backend="nccl")
@@ -33,11 +34,11 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1"):
     # Model related
     if local_rank == 0:
         # Logging
-        logger, long_id = init_logger(do_logging=True, existing_run=None, new_run_name=run_name, config=config)
+        logger = init_logger(run_name, run_id, project_name, config, do_logging=True)
 
         # Construct the rank 0 model
-        model = XMemTrainer(config.to_dict(), logger=logger, 
-                        save_path=Path('saves', long_id, 'iteration') if long_id is not None else None, 
+        model = XMemTrainer(config.to_dict(), logger=logger,
+                        save_path=Path('saves', run_id, 'iteration') if run_id is not None else None, 
                         local_rank=local_rank, world_size=world_size).train()
     else:
         # Construct model for other ranks
