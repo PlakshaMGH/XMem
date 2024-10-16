@@ -49,7 +49,7 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1"):
 
     MAIN_FOLDER = Path("../data")
     TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames/train"
-    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train/binary_masks"
+    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train/type_masks"
     SAVE_DIR = Path("./artifacts/saved_models")
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
 

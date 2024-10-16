@@ -145,7 +145,7 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
 
     MAIN_FOLDER = Path("../data")
     TEST_VIDEOS_PATH = MAIN_FOLDER / "frames/test"
-    TEST_MASKS_PATH = MAIN_FOLDER / "masks/test/binary_masks"
+    TEST_MASKS_PATH = MAIN_FOLDER / "masks/test/type_masks"
 
     for model_file in model_files:
         print(f"Testing model: {model_file}")

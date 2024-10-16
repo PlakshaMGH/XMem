@@ -221,9 +221,9 @@ def init_logger(do_logging=True, existing_run=None, new_run_name=None, config=co
         long_id = None
 
     if existing_run is not None:
-        logger = WandbLogger(run_name=None, id=None, project_name="DataVar_XMem_E17_Bin").get_run(existing_run)
+        logger = WandbLogger(run_name=None, id=None, project_name="DataVar_XMem_E17_Type").get_run(existing_run)
     else:
-        logger = WandbLogger(run_name=new_run_name, id=long_id, project_name="DataVar_XMem_E17_Bin")
+        logger = WandbLogger(run_name=new_run_name, id=long_id, project_name="DataVar_XMem_E17_Type")
 
     logger.log_string("hyperparams", str(config))
     return logger, long_id
