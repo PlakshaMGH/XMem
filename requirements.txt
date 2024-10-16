@@ -5,9 +5,8 @@ git+https://github.com/cheind/py-thin-plate-spline
 hickle
 tensorboard
 numpy
-wandb
+wandb[media]
 matplotlib
-opencv-python
 scikit-image
 torchmetrics
 typer

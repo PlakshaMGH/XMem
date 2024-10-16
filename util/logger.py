@@ -143,9 +143,9 @@ class WandbLogger:
         if not self.no_log:
             wandb.log_model(model, name=name)
 
-    def log_video(self, numpy_array, fps, name="video"):
+    def log_video(self, video_path, name="video"):
         if not self.no_log:
-            wandb.log({name: wandb.Video(numpy_array, fps=fps)})
+            wandb.log({name: wandb.Video(video_path)})
 
     def finish(self):
         if not self.no_log:

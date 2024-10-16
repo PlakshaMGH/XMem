@@ -35,6 +35,17 @@ def add_background_mask(mask):
     return torch.cat([background.unsqueeze(0), mask], dim=0)
 
 def color_map(pred_mask: np.ndarray, gt_mask: np.ndarray):
+
+    if isinstance(pred_mask, torch.Tensor):
+        pred_mask = pred_mask.cpu().numpy()
+    if isinstance(gt_mask, torch.Tensor):
+        gt_mask = gt_mask.cpu().numpy()
+
+    if pred_mask.ndim == 3: # one hot encoded
+        pred_mask = np.argmax(pred_mask, axis=0)
+    if gt_mask.ndim == 3: # one hot encoded
+        gt_mask = np.argmax(gt_mask, axis=0)
+
     # Intersection of pred_mask and gt_mask: True Positive
     true_positive = np.bitwise_and(pred_mask, gt_mask)
     # Only Pred not GT: False Positive
@@ -56,21 +67,24 @@ def color_map(pred_mask: np.ndarray, gt_mask: np.ndarray):
 
     return color_map
 
-def create_video_from_frames(video_frames):
-    video_path = f"./saved_videos/video.mp4"
+def create_video_from_frames(video_frames, video_name):
+    save_folder = Path("./saved_videos")
+    save_folder.mkdir(parents=True, exist_ok=True)
+    video_path = save_folder / f"{video_name}.mp4"
     sample_frame = list(video_frames.values())[0]
     size1, size2, _ = sample_frame.shape
-    out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'mp4v'), 1, (size2, size1), True)
+    out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'avc1'), 1, (size2, size1), True)
     for frame_name, frame in sorted(video_frames.items(), key=lambda x: x[0]):
         out_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         out.write(out_img)
     out.release()
 
+    return str(video_path)
+
 def create_numpy_video_from_frames(video_frames):
     numpy_video = []
     for frame_name, frame in sorted(video_frames.items(), key=lambda x: x[0]):
-        out_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        numpy_video.append(out_img)
+        numpy_video.append(frame)
     return np.stack(numpy_video, axis=0)
 
 
@@ -124,9 +138,10 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
 
         prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob, len(processor.all_labels))
         pred_masks.append(prob.cpu())
-        gt_masks.append(add_background_mask(mask.cpu()))
+        mask = add_background_mask(mask.cpu())
+        gt_masks.append(mask)
 
-        color_mask = color_map(prob_numpy_mask, original_mask)
+        color_mask = color_map(prob_numpy_mask, mask)
         video_frames[frame_name] = cv2.addWeighted(data['original_img'], 1, color_mask, 0.5, 0)
 
     # Calculate IoU and Dice
@@ -170,6 +185,7 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
 
         # Test for each patient
         patient_ious = []
+        video_frames_dict = {}
         for patient_id in TEST_VIDEOS_PATH.iterdir():
             # Initialize mapper for each patient for new labels in each patient
             mapper = MaskMapper()
@@ -181,7 +197,8 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
                 print(f"Testing patient {patient_id.name}")
                 
                 patient_iou_per_class, _, video_frames = test_patient(frames_path, masks_path, processor, mapper, size=384)
-                
+                video_frames_dict[patient_id.name] = video_frames
+
                 if patient_iou_per_class.ndim == 0:
                     patient_iou_per_class = patient_iou_per_class.unsqueeze(0)
                 for i, iou in enumerate(patient_iou_per_class):
@@ -198,15 +215,19 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
         if avg_iou > best_avg_iou:
             best_avg_iou = avg_iou
             best_model_path = model_file
-            best_video_frames = video_frames
+            best_video_frames = video_frames_dict
 
     # Save the best model
     if best_model_path:
         model_name = f"best_{train_set}_{best_avg_iou*100:.2f}.pth"
-        logger.log_metrics('test', 'best_avg_iou', best_avg_iou, step=train_set[-1])
+        logger.log_metrics('test', 'best_avg_iou', best_avg_iou, step=int(train_set[-1]))
         logger.log_model(best_model_path, name=model_name)
         if best_video_frames:
-            best_video_numpy = create_numpy_video_from_frames(best_video_frames)
-            logger.log_video(best_video_numpy, fps=1, name="best_video")
+            for patient_id, video_frames in best_video_frames.items():
+                video_path = create_video_from_frames(video_frames, patient_id)
+                logger.log_video(video_path, name=patient_id)
     else:
         print("No best model found.")
+
+if __name__ == "__main__":
+    typer.run(main)

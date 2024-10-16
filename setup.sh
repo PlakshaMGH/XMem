@@ -16,5 +16,8 @@ git clone https://github.com/PlakshaMGH/XMem.git /workspace/XMem
 cd /workspace/XMem
 pip install -r requirements.txt
 
+# opencv from conda for H264 encoding
+conda install -c conda-forge opencv -y
+
 git lfs pull
 # pip install -e .
