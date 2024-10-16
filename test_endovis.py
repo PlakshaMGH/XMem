@@ -162,11 +162,11 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = "e17ty
     if not model_dirs:
         raise ValueError("No model directories found in ./saves")
     
-    latest_model_dir = model_dirs[0]
-    model_files = sorted(latest_model_dir.glob("*.pth"), key=os.path.getmtime, reverse=False)
+    model_dir = saves_dir / run_id
+    model_files = sorted(model_dir.glob("*.pth"), reverse=False)
     
     if not model_files:
-        raise ValueError(f"No .pth files found in {latest_model_dir}")
+        raise ValueError(f"No .pth files found in {model_dir}")
 
     best_model_path = None
     best_video_frames = None
