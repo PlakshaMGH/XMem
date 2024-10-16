@@ -13,7 +13,7 @@ from transforms import get_transforms
 from util.configuration import config, init_logger
 from model.trainer import XMemTrainer
 
-def main(subset_string: str = "1,2,3,4,5,6,7,8"):
+def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1"):
 
     # Init distributed environment
     distributed.init_process_group(backend="nccl")
@@ -21,6 +21,8 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8"):
 
     if config.benchmark:
         torch.backends.cudnn.benchmark = True
+
+    config.exp_id = run_name
 
     local_rank = torch.distributed.get_rank()
     world_size = torch.distributed.get_world_size()
@@ -31,7 +33,7 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8"):
     # Model related
     if local_rank == 0:
         # Logging
-        logger, long_id = init_logger(do_logging=True, existing_run=None)
+        logger, long_id = init_logger(do_logging=True, existing_run=None, run_name=run_name, config=config)
 
         # Construct the rank 0 model
         model = XMemTrainer(config.to_dict(), logger=logger, 

@@ -180,6 +180,7 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
     # Save the best model
     if best_model_path:
         model_name = f"best_{train_set}_{best_avg_iou*100:.2f}.pth"
+        logger.log_metrics('test', 'best_avg_iou', best_avg_iou, step=train_set[-1])
         logger.log_model(best_model_path, name=model_name)
         print(f"Best average IoU: {best_avg_iou:.4f}")
     else:
