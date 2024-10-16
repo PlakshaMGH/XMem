@@ -137,11 +137,15 @@ class WandbLogger:
         if self.no_log:
             warnings.warn('W&B Logging has been disabled.')
             return
-        wandb.log({tag: x})
+        # wandb.log({tag: x})
 
     def log_model(self, model, name):
         if not self.no_log:
             wandb.log_model(model, name=name)
+
+    def log_video(self, numpy_array, fps, name="video"):
+        if not self.no_log:
+            wandb.log({name: wandb.Video(numpy_array, fps=fps)})
 
     def finish(self):
         if not self.no_log:

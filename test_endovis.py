@@ -17,14 +17,22 @@ from inference.data.video_reader import VideoReader
 from inference.inference_core import InferenceCore
 
 logger, _ = init_logger(do_logging=False, existing_run=True) # Set to True to resume logging on latest run
-mapper = MaskMapper()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def torch_prob_to_one_hot_torch(prob, num_classes):
     mask = torch.argmax(prob, dim=0)
     numpy_mask = mask.cpu().numpy()
     mask = F.one_hot(mask, num_classes=num_classes+1).permute(2, 0, 1)
-    return mask[1:], numpy_mask
+    return mask, numpy_mask
+
+def add_background_mask(mask):
+    # Create the background mask
+    background = torch.ones_like(mask[0])  # Start with all ones
+    for channel in mask:
+        background = background & (channel == 0)  # Set to 0 where any channel has 1
+    
+    # Combine the background mask with the original mask
+    return torch.cat([background.unsqueeze(0), mask], dim=0)
 
 def color_map(pred_mask: np.ndarray, gt_mask: np.ndarray):
     # Intersection of pred_mask and gt_mask: True Positive
@@ -58,8 +66,15 @@ def create_video_from_frames(video_frames):
         out.write(out_img)
     out.release()
 
+def create_numpy_video_from_frames(video_frames):
+    numpy_video = []
+    for frame_name, frame in sorted(video_frames.items(), key=lambda x: x[0]):
+        out_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        numpy_video.append(out_img)
+    return np.stack(numpy_video, axis=0)
 
-def test_patient(frames_path, masks_path, processor, size=-1):
+
+def test_patient(frames_path, masks_path, processor, mapper, size=-1):
     vid_reader = VideoReader(frames_path, frames_path, masks_path, size=size, use_all_mask=True)
 
     total_iou = 0
@@ -93,8 +108,8 @@ def test_patient(frames_path, masks_path, processor, size=-1):
             mask_to_use = resized_mask
             labels_to_use = labels
             # IoU and Dice init
-            IoU = MeanIoU(num_classes=len(processor.all_labels)+1, include_background=False)
-            Dice = GeneralizedDiceScore(num_classes=len(processor.all_labels)+1, include_background=False)
+            IoU = MeanIoU(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
+            Dice = GeneralizedDiceScore(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
         else:
             mask_to_use = None
             labels_to_use = None
@@ -109,12 +124,10 @@ def test_patient(frames_path, masks_path, processor, size=-1):
 
         prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob, len(processor.all_labels))
         pred_masks.append(prob.cpu())
-        gt_masks.append(mask.cpu())
+        gt_masks.append(add_background_mask(mask.cpu()))
 
         color_mask = color_map(prob_numpy_mask, original_mask)
         video_frames[frame_name] = cv2.addWeighted(data['original_img'], 1, color_mask, 0.5, 0)
-
-    create_video_from_frames(video_frames)
 
     # Calculate IoU and Dice
     pred_masks = torch.stack(pred_masks, dim=0)
@@ -122,7 +135,7 @@ def test_patient(frames_path, masks_path, processor, size=-1):
     meanIoU = IoU(pred_masks, gt_masks)
     meanDice = Dice(pred_masks, gt_masks)
 
-    return meanIoU.item(), meanDice.item()
+    return meanIoU, meanDice, video_frames
 
 def main(subset_string: str = "9,10", train_set: str = "1"):
 
@@ -141,6 +154,7 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
         raise ValueError(f"No .pth files found in {latest_model_dir}")
 
     best_model_path = None
+    best_video_frames = None
     best_avg_iou = 0
 
     MAIN_FOLDER = Path("../data")
@@ -153,38 +167,46 @@ def main(subset_string: str = "9,10", train_set: str = "1"):
         
         # Load model
         network = XMem(test_config.to_dict(), model_file).eval().to(device)
-        processor = InferenceCore(network, config=test_config.to_dict())
 
         # Test for each patient
         patient_ious = []
         for patient_id in TEST_VIDEOS_PATH.iterdir():
+            # Initialize mapper for each patient for new labels in each patient
+            mapper = MaskMapper()
+            processor = InferenceCore(network, config=test_config.to_dict())
             number = int(re.search(r'\d+', patient_id.name).group())
             if patient_id.is_dir() and (number in subset_list):
                 frames_path = TEST_VIDEOS_PATH / patient_id.name
                 masks_path = TEST_MASKS_PATH / patient_id.name
                 print(f"Testing patient {patient_id.name}")
                 
-                patient_iou, patient_dice = test_patient(frames_path, masks_path, processor, size=384)
-                logger.log_metrics('test', patient_id.name, patient_iou, step=iteration_num)
-                patient_ious.append(patient_iou)
-                print(f"Patient {patient_id.name} IoU: {patient_iou:.4f}")
+                patient_iou_per_class, _, video_frames = test_patient(frames_path, masks_path, processor, mapper, size=384)
+                
+                if patient_iou_per_class.ndim == 0:
+                    patient_iou_per_class = patient_iou_per_class.unsqueeze(0)
+                for i, iou in enumerate(patient_iou_per_class):
+                    logger.log_metrics('test', f'{patient_id.name}_class_{processor.all_labels[i]}', iou, step=iteration_num)
+
+                mean_iou = torch.mean(patient_iou_per_class)
+                logger.log_metrics('test', patient_id.name, mean_iou, step=iteration_num)
+                patient_ious.append(mean_iou)
+
 
         avg_iou = np.mean(patient_ious)
-        print(f"Average IoU: {avg_iou:.4f}")
         logger.log_metrics('test', 'avg_iou', avg_iou, step=iteration_num)
 
         if avg_iou > best_avg_iou:
             best_avg_iou = avg_iou
             best_model_path = model_file
+            best_video_frames = video_frames
 
     # Save the best model
     if best_model_path:
         model_name = f"best_{train_set}_{best_avg_iou*100:.2f}.pth"
         logger.log_metrics('test', 'best_avg_iou', best_avg_iou, step=train_set[-1])
         logger.log_model(best_model_path, name=model_name)
-        print(f"Best average IoU: {best_avg_iou:.4f}")
+        if best_video_frames:
+            best_video_numpy = create_numpy_video_from_frames(best_video_frames)
+            logger.log_video(best_video_numpy, fps=1, name="best_video")
     else:
         print("No best model found.")
-
-if __name__ == "__main__":
-    typer.run(main)
