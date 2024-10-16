@@ -33,7 +33,7 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1"):
     # Model related
     if local_rank == 0:
         # Logging
-        logger, long_id = init_logger(do_logging=True, existing_run=None, run_name=run_name, config=config)
+        logger, long_id = init_logger(do_logging=True, existing_run=None, new_run_name=run_name, config=config)
 
         # Construct the rank 0 model
         model = XMemTrainer(config.to_dict(), logger=logger, 
