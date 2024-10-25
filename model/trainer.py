@@ -130,7 +130,7 @@ class XMemTrainer:
                                 self.logger.log_cv2('train/pairs', pool_pairs(images, size, num_filled_objects), it)
 
             if self._is_train:
-                if (it) % self.log_text_interval == 0 and it != 0:
+                if (it) % self.log_text_interval == 0: # log for it=0 too
                     if self.logger is not None:
                         self.logger.log_scalar('train/lr', self.scheduler.get_last_lr()[0], it)
                         self.logger.log_metrics('train', 'time', (time.time()-self.last_time)/self.log_text_interval, it)
@@ -138,7 +138,7 @@ class XMemTrainer:
                     self.train_integrator.finalize('train', it)
                     self.train_integrator.reset_except_hooks()
 
-                if it % self.save_network_interval == 0 and it != 0:
+                if it % self.save_network_interval == 0: # save for it=0 too, starting point, for testing model without finetuning.
                     if self.logger is not None:
                         self.save_network(it)
 
