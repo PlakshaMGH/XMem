@@ -23,6 +23,8 @@ class XMem(nn.Module):
         super().__init__()
         model_weights = self.init_hyperparameters(config, model_path, map_location)
 
+        do_init_weights = model_weights is None # If model_weights is None, we need to initialize the weights
+
         self.single_object = config.get('single_object', False)
         print(f'Single object mode: {self.single_object}')
 
@@ -30,7 +32,7 @@ class XMem(nn.Module):
         self.value_encoder = ValueEncoder(self.value_dim, self.hidden_dim, self.single_object)
 
         # Projection from f16 feature space to key/value space
-        self.key_proj = KeyProjection(1024, self.key_dim)
+        self.key_proj = KeyProjection(1024, self.key_dim, do_init_weights)
 
         self.decoder = Decoder(self.value_dim, self.hidden_dim)
 

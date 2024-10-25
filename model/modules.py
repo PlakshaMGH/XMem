@@ -192,7 +192,7 @@ class UpsampleBlock(nn.Module):
 
 
 class KeyProjection(nn.Module):
-    def __init__(self, in_dim, keydim):
+    def __init__(self, in_dim, keydim, do_init_weights=False):
         super().__init__()
 
         self.key_proj = nn.Conv2d(in_dim, keydim, kernel_size=3, padding=1)
@@ -201,8 +201,9 @@ class KeyProjection(nn.Module):
         # selection
         self.e_proj = nn.Conv2d(in_dim, keydim, kernel_size=3, padding=1)
 
-        nn.init.orthogonal_(self.key_proj.weight.data)
-        nn.init.zeros_(self.key_proj.bias.data)
+        if do_init_weights:
+            nn.init.orthogonal_(self.key_proj.weight.data)
+            nn.init.zeros_(self.key_proj.bias.data)
     
     def forward(self, x, need_s, need_e):
         shrinkage = self.d_proj(x)**2 + 1 if (need_s) else None

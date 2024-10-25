@@ -176,12 +176,14 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = "e17ty
     TEST_VIDEOS_PATH = MAIN_FOLDER / "frames/test"
     TEST_MASKS_PATH = MAIN_FOLDER / "masks/test/type_masks"
 
+    torch.autograd.set_grad_enabled(False)
+
     for model_file in model_files:
         print(f"Testing model: {model_file}")
         iteration_num = int(model_file.stem.split("_")[-1].split(".")[0])
         
         # Load model
-        network = XMem(test_config.to_dict(), model_file).eval().to(device)
+        network = XMem(test_config.to_dict(), model_file).to(device).eval()
 
         # Test for each patient
         patient_ious = []
