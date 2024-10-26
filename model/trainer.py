@@ -54,9 +54,6 @@ class XMemTrainer:
         if config['debug']:
             self.log_text_interval = self.log_image_interval = 1
 
-        # save the starting point as iteration 0
-        self.save_network(0)
-
     def do_pass(self, data, it=0):
         # No need to store the gradient outside training
         torch.set_grad_enabled(self._is_train)
@@ -170,6 +167,9 @@ class XMemTrainer:
         
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
         model_path = f'{self.save_path}_{it:06d}.pth'
+        if os.path.exists(model_path):
+            print(f'Network already exists at {model_path}.')
+            return
         torch.save(self.XMem.module.state_dict(), model_path)
         print(f'Network saved to {model_path}.')
 

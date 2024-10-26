@@ -13,6 +13,38 @@ from transforms import get_transforms
 from util.configuration import config, init_logger
 from model.trainer import XMemTrainer
 
+def get_loader(subset_string: str, num_iterations: int, max_jump: int, world_size: int, local_rank: int):
+
+    MAIN_FOLDER = Path("../data")
+    TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames/train"
+    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train/type_masks"
+
+    transforms_dict = get_transforms()
+
+    train_dataset = EndoVisDataset(
+        TRAIN_VIDEOS_PATH,
+        TRAIN_MASKS_PATH,
+        num_iterations=num_iterations,
+        batch_size=config.batch_size,
+        max_jump=max_jump,
+        num_frames=config.num_frames,
+        max_num_obj=config.max_num_obj,
+        transform=transforms_dict,
+        subset=[int(i) for i in subset_string.split(',')]
+    )
+
+    train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=local_rank)
+    train_loader = DataLoader(
+        train_dataset,
+        config.batch_size,
+        num_workers=config.num_workers,
+        drop_last=True,
+        sampler=train_sampler,
+        pin_memory=True,
+    )
+
+    return train_sampler, train_loader
+
 def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
          run_id: str = "abcd1xx4", project_name: str = "DataVar_XMem_E17_Type"):
 
@@ -48,55 +80,50 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
     # loading pretrained weights
     model.load_network("./artifacts/XMem.pth")
 
-    MAIN_FOLDER = Path("../data")
-    TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames/train"
-    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train/type_masks"
+    # saving the starting point as iteration 0
+    if local_rank == 0:
+        model.save_network(0)
+
+    
     SAVE_DIR = Path("./artifacts/saved_models")
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
-    transforms_dict = get_transforms()
-
-    train_dataset = EndoVisDataset(
-        TRAIN_VIDEOS_PATH,
-        TRAIN_MASKS_PATH,
-        num_iterations=config.num_iterations,
-        batch_size=config.batch_size,
-        max_jump=20,
-        num_frames=8,
-        max_num_obj=config.max_num_obj,
-        transform=transforms_dict,
-        subset=[int(i) for i in subset_string.split(',')]
-    )
-
-    train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=local_rank)
-    train_loader = DataLoader(
-        train_dataset,
-        config.batch_size,
-        num_workers=config.num_workers,
-        drop_last=True,
-        sampler=train_sampler,
-        pin_memory=True,
-    )
-
     total_iterations = config.num_iterations
+    steps = config.steps
+    max_skip_value = config.max_skip_value
+
+    assert sum(steps) == total_iterations, "Total iterations must be equal to the sum of steps"
+    assert len(max_skip_value) == len(steps), "Length of max_skip_value must be equal to the length of steps"
+
     iteration_per_gpu = total_iterations // world_size
     print(f"Training model for {total_iterations} total iterations and {iteration_per_gpu} iterations per GPU.")
     ## Train Loop
     model.train()
 
-    iter_pbar = tqdm(train_loader, disable=local_rank!=0)
-    for iteration, data in enumerate(iter_pbar, start=1):
-        train_sampler.set_epoch(iteration) 
-        total_loss: float = model.do_pass(data, iteration*world_size)
+    tqdm_iter = tqdm(total=total_iterations)
+    iteration = 1
+    for step, max_skip in zip(steps, max_skip_value):
+        print(f"Training for {step} iterations with max skip value {max_skip}")
+        train_sampler, train_loader = get_loader(subset_string, step, max_skip, world_size, local_rank)
 
-        # update progress bar
-        iter_pbar.set_postfix(total_loss=total_loss)
+        for epoch, data in enumerate(train_loader):
+            train_sampler.set_epoch(epoch) 
+            total_loss: float = model.do_pass(data, iteration*world_size)
+            iteration += 1
+            # update progress bar
+            tqdm_iter.set_postfix(total_loss=total_loss)
+            tqdm_iter.update(1)
+    tqdm_iter.close()
 
     distributed.destroy_process_group()
 
     # end the logger
     if logger:
         logger.finish()
+    
+    # save the final model
+    if local_rank == 0:
+        model.save_network(total_iterations-1)
 
     print("Training complete!")
 

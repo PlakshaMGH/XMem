@@ -57,6 +57,7 @@ class WandbLogger:
         if existing_run_id and isinstance(existing_run_id, str):
             self.no_log = False
             self.logger = wandb.init(project=self.project_name, id=existing_run_id, resume='allow')
+            self.run_name = self.logger.name
             return self
         else:
             warnings.warn('No existing run ID provided...')

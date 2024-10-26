@@ -113,7 +113,7 @@ def pool_pairs(images, size, num_objects):
 
     GT_suffix = ''
     for bi in range(b):
-        GT_suffix += ' \n%s' % images['info']['name'][bi][-25:-4]
+        GT_suffix += ' \n%s' % images['info']['name'][bi]
 
     for bi in range(b):
         for ti in range(t):

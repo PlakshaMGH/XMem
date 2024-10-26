@@ -34,6 +34,7 @@ class EndoVisDataset(Dataset):
         self.batch_size = batch_size # Batch size
         self.num_frames = num_frames # Number of frames to be sampled
         self.max_num_obj = max_num_obj # Maximum number of objects
+        self.transform = transform
 
         # Pre-filtering
         self.subset = subset
@@ -43,7 +44,7 @@ class EndoVisDataset(Dataset):
 
         print('%d out of %d videos accepted in %s.' % (len(self.videos), len(vid_list), im_root))
 
-        if transform:
+        if self.transform:
             self.single_image_T = transform["single_image"] # RGB Image Transformations
             self.pair_image_gt_T = transform["pair_image_gt"] # RGB Image and Ground Truth Transformations
             self.seq_image_T = transform["seq_image"] # RGB Image Transformations for all frames
@@ -127,22 +128,23 @@ class EndoVisDataset(Dataset):
             this_im = Image.open(path.join(vid_im_path, jpg_name)).convert('RGB')
             this_gt = Image.open(path.join(vid_gt_path, png_name)).convert('P')
 
-            # Same Transformation for Image/Mask pairs throughout current sequence
-            # due to same seed, the same transformation is applied to all frames
-            reseed(sequence_seed)
-            this_im = self.seq_image_gt_T[0](this_im)
-            this_im = self.seq_image_T(this_im)
-            reseed(sequence_seed)
-            this_gt = self.seq_image_gt_T[1](this_gt)
+            if self.transform:
+                # Same Transformation for Image/Mask pairs throughout current sequence
+                # due to same seed, the same transformation is applied to all frames
+                reseed(sequence_seed)
+                this_im = self.seq_image_gt_T[0](this_im)
+                this_im = self.seq_image_T(this_im)
+                reseed(sequence_seed)
+                this_gt = self.seq_image_gt_T[1](this_gt)
 
-            # Different Transformation for Image/Mask pairs in a sequence
-            # due to different seed in each iteration, different transformation is applied to each frame
-            pairwise_seed = np.random.randint(2147483647) # generate a random seed for each frame
-            reseed(pairwise_seed)
-            this_im = self.pair_image_gt_T[0](this_im)
-            this_im = self.single_image_T(this_im)
-            reseed(pairwise_seed)
-            this_gt = self.pair_image_gt_T[1](this_gt)
+                # Different Transformation for Image/Mask pairs in a sequence
+                # due to different seed in each iteration, different transformation is applied to each frame
+                pairwise_seed = np.random.randint(2147483647) # generate a random seed for each frame
+                reseed(pairwise_seed)
+                this_im = self.pair_image_gt_T[0](this_im)
+                this_im = self.single_image_T(this_im)
+                reseed(pairwise_seed)
+                this_gt = self.pair_image_gt_T[1](this_gt)
 
 
             this_im = self.final_im_transform(this_im)
@@ -183,10 +185,11 @@ class EndoVisDataset(Dataset):
         info['num_objects'] = len(target_objects)
 
         masks = np.stack(masks, 0)
+        h, w = masks.shape[1:]
 
         # Generate one-hot ground-truth
-        cls_gt = np.zeros((self.num_frames, 384, 384), dtype=np.int64)
-        first_frame_gt = np.zeros((1, self.max_num_obj, 384, 384), dtype=np.int64)
+        cls_gt = np.zeros((self.num_frames, h, w), dtype=np.int64)
+        first_frame_gt = np.zeros((1, self.max_num_obj, h, w), dtype=np.int64)
         for i, l in enumerate(target_objects):
             this_mask = (masks==l)
             cls_gt[this_mask] = i+1
@@ -203,6 +206,7 @@ class EndoVisDataset(Dataset):
             'cls_gt': cls_gt,
             'selector': selector,
             'info': info,
+            'og_masks': masks
         }
 
         return data
