@@ -94,6 +94,7 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
     num_frames = len(vid_reader)
     video_frames = {}
     pred_masks = []
+    pred_probs = []
     gt_masks = []
 
     # Initialize loss computer
@@ -137,8 +138,9 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
             prob = F.interpolate(prob.unsqueeze(1), shape, mode='bilinear', align_corners=False)[:,0]
 
         prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob, len(processor.all_labels))
-        pred_masks.append(prob)
-        mask = add_background_mask(mask)
+        pred_masks.append(prob.cpu())
+        pred_probs.append(prob_numpy_mask)
+        mask = add_background_mask(mask.cpu())
         gt_masks.append(mask)
 
         color_mask = color_map(prob_numpy_mask, mask)
@@ -146,20 +148,21 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
 
     # Stack all masks
     pred_masks = torch.stack(pred_masks, dim=0)  # Shape: T*C*H*W
+    pred_probs = torch.stack(pred_probs, dim=0)  # Shape: T*C*H*W
     gt_masks = torch.stack(gt_masks, dim=0)  # Shape: T*C*H*W
 
     # Calculate IoU and Dice
-    IoU = MeanIoU(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False).to(device)
-    Dice = GeneralizedDiceScore(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False).to(device)
+    IoU = MeanIoU(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
+    Dice = GeneralizedDiceScore(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
     meanIoU = IoU(pred_masks, gt_masks)
     meanDice = Dice(pred_masks, gt_masks)
 
     # Calculate losses using the new compute_test method
-    losses = loss_computer.compute_test(pred_masks, gt_masks)
+    losses = loss_computer.compute_test(pred_probs, gt_masks)
 
     return meanIoU, meanDice, video_frames, losses
 
-def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = "e17type1", project_name: str = "DataVar_XMem_E17_Type"):
+def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, project_name: str = "DataVar_XMem_E17_Type"):
 
     logger = init_logger(None, run_id, project_name, test_config, do_logging=False)
     subset_list = [int(i) for i in subset_string.split(',')]

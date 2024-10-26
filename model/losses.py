@@ -24,7 +24,7 @@ class BootstrappedCE(nn.Module):
     def __init__(self, start_warm, end_warm, top_p=0.15):
         super().__init__()
 
-        self.start_warm = start_warm if start_warm is not None else -1
+        self.start_warm = start_warm if start_warm is not None else float('inf')
         self.end_warm = end_warm
         self.top_p = top_p
 
@@ -47,7 +47,7 @@ class LossComputer:
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.bce = BootstrappedCE(config['start_warm'], config['end_warm'])
+        self.bce = BootstrappedCE(config.get('start_warm'), config.get('end_warm'))
 
     def compute(self, data, num_objects, it):
         losses = defaultdict(int)
@@ -77,19 +77,10 @@ class LossComputer:
 
     def compute_test(self, pred_masks, gt_masks):
         losses = defaultdict(float)
-        t, c, h, w = pred_masks.shape
-
-        for ti in range(t):
-            # Compute BCE loss
-            bce_loss, _ = self.bce(pred_masks[ti].unsqueeze(0), gt_masks[ti].argmax(dim=0).unsqueeze(0), 0)  # Use iteration 0 for testing
-            losses['bce_loss'] += bce_loss.item()
-
-            # Compute Dice loss
-            dice_loss_val = dice_loss(pred_masks[ti].unsqueeze(0), gt_masks[ti].argmax(dim=0).unsqueeze(0))
-            losses['dice_loss'] += dice_loss_val.item()
-
-        losses['average_bce_loss'] = losses['bce_loss'] / t
-        losses['average_dice_loss'] = losses['dice_loss'] / t
-        losses['total_avg_loss'] = losses['average_bce_loss'] + losses['average_dice_loss']
+        
+        gt_masks = gt_masks.argmax(dim=1)
+        losses['bce_loss'], _ = self.bce(pred_masks, gt_masks, 0)
+        losses['dice_loss'] = dice_loss(pred_masks, gt_masks)
+        losses['total_loss'] = losses['bce_loss'] + losses['dice_loss']
 
         return losses
