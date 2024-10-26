@@ -42,7 +42,13 @@ class XMemTrainer:
         self.train()
         self.optimizer = optim.AdamW(filter(
             lambda p: p.requires_grad, self.XMem.parameters()), lr=config['lr'], weight_decay=config['weight_decay'])
-        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, config['steps'], config['gamma'])
+        # self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, config['steps'], config['gamma'])
+        lr_factor = config['lr_scheduler_factor']
+        lr_patience = config['lr_scheduler_patience']
+        lr_cooldown = config['lr_scheduler_cooldown']
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min',
+                                                            factor=lr_factor, patience=lr_patience,
+                                                            cooldown=lr_cooldown, verbose=True)
         if config['amp']:
             self.scaler = GradScaler("cuda")
 
@@ -156,7 +162,7 @@ class XMemTrainer:
             losses['total_loss'].backward() 
             self.optimizer.step()
 
-        self.scheduler.step()
+        self.scheduler.step(losses['dice_loss'].item())
 
         return losses['total_loss'].item()
 

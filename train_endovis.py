@@ -89,11 +89,11 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
     total_iterations = config.num_iterations
-    steps = config.steps
+    jump_steps = config.jump_steps
     max_skip_value = config.max_skip_value
 
-    assert sum(steps) == total_iterations, "Total iterations must be equal to the sum of steps"
-    assert len(max_skip_value) == len(steps), "Length of max_skip_value must be equal to the length of steps"
+    assert sum(jump_steps) == total_iterations, "Total iterations must be equal to the sum of steps"
+    assert len(max_skip_value) == len(jump_steps), "Length of max_skip_value must be equal to the length of steps"
 
     iteration_per_gpu = total_iterations // world_size
     print(f"Training model for {total_iterations} total iterations and {iteration_per_gpu} iterations per GPU.")
@@ -102,7 +102,7 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
 
     tqdm_iter = tqdm(total=total_iterations)
     iteration = 1
-    for step, max_skip in zip(steps, max_skip_value):
+    for step, max_skip in zip(jump_steps, max_skip_value):
         print(f"Training for {step} iterations with max skip value {max_skip}")
         train_sampler, train_loader = get_loader(subset_string, step, max_skip, world_size, local_rank)
 
@@ -112,7 +112,7 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
             iteration += 1
             # update progress bar
             tqdm_iter.set_postfix(total_loss=total_loss)
-            tqdm_iter.update(1)
+            tqdm_iter.update(1*world_size)
     tqdm_iter.close()
 
     distributed.destroy_process_group()

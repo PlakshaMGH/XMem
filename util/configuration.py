@@ -160,7 +160,7 @@ class Config:
     num_workers: int = 8
 
     batch_size: int = 8
-    start_warm: int = 1500
+    start_warm: int = 1000
     end_warm: int = 2000
     finetune: int = 0
     num_iterations: int = 2_500
@@ -169,7 +169,15 @@ class Config:
     num_ref_frames: int = 3
     max_skip_value: List[int] = field(default_factory=lambda: [5, 20, 5, 2])
     max_num_obj: int = 3
-    steps: List[int] = field(default_factory=lambda: [250, 1000, 750, 500])
+    jump_steps: List[int] = field(default_factory=lambda: [250, 1000, 750, 500])
+
+    # learning rate scheduler parameters
+    lr_scheduler_factor: float = 0.1
+    lr_scheduler_patience: int = 100
+    lr_scheduler_cooldown: int = 50
+
+
+    # steps: List[int] = field(default_factory=lambda: [250, 1000, 750, 500])
 
     save_checkpoint_interval: int = 10_000
     save_network_interval: int = 250

@@ -15,6 +15,7 @@ from model.network import XMem
 from inference.data.mask_mapper import MaskMapper
 from inference.data.video_reader import VideoReader
 from inference.inference_core import InferenceCore
+from model.losses import LossComputer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -90,13 +91,13 @@ def create_numpy_video_from_frames(video_frames):
 def test_patient(frames_path, masks_path, processor, mapper, size=-1):
     vid_reader = VideoReader(frames_path, frames_path, masks_path, size=size, use_all_mask=True)
 
-    total_iou = 0
     num_frames = len(vid_reader)
-    iou_list = []
-    dice_list = []
     video_frames = {}
     pred_masks = []
     gt_masks = []
+
+    # Initialize loss computer
+    loss_computer = LossComputer(test_config.to_dict())
 
     for data in tqdm(vid_reader, total=num_frames):
         frame = data['rgb'].to(device)
@@ -136,20 +137,27 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
             prob = F.interpolate(prob.unsqueeze(1), shape, mode='bilinear', align_corners=False)[:,0]
 
         prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob, len(processor.all_labels))
-        pred_masks.append(prob.cpu())
-        mask = add_background_mask(mask.cpu())
+        pred_masks.append(prob)
+        mask = add_background_mask(mask)
         gt_masks.append(mask)
 
         color_mask = color_map(prob_numpy_mask, mask)
         video_frames[frame_name] = cv2.addWeighted(data['original_img'], 1, color_mask, 0.5, 0)
 
+    # Stack all masks
+    pred_masks = torch.stack(pred_masks, dim=0)  # Shape: T*C*H*W
+    gt_masks = torch.stack(gt_masks, dim=0)  # Shape: T*C*H*W
+
     # Calculate IoU and Dice
-    pred_masks = torch.stack(pred_masks, dim=0)
-    gt_masks = torch.stack(gt_masks, dim=0)
+    IoU = MeanIoU(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False).to(device)
+    Dice = GeneralizedDiceScore(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False).to(device)
     meanIoU = IoU(pred_masks, gt_masks)
     meanDice = Dice(pred_masks, gt_masks)
 
-    return meanIoU, meanDice, video_frames
+    # Calculate losses using the new compute_test method
+    losses = loss_computer.compute_test(pred_masks, gt_masks)
+
+    return meanIoU, meanDice, video_frames, losses
 
 def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = "e17type1", project_name: str = "DataVar_XMem_E17_Type"):
 
@@ -198,9 +206,14 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = "e17ty
                 masks_path = TEST_MASKS_PATH / patient_id.name
                 print(f"Testing patient {patient_id.name}")
                 
-                patient_iou_per_class, _, video_frames = test_patient(frames_path, masks_path, processor, mapper, size=384)
+                patient_iou_per_class, _, video_frames, losses = test_patient(frames_path, masks_path, processor, mapper, size=384)
                 video_frames_dict[patient_id.name] = video_frames
 
+                # Log losses
+                for loss_name, loss_value in losses.items():
+                    logger.log_metrics('test', f'{patient_id.name}_{loss_name}', loss_value, step=iteration_num)
+
+                # Log IoU and Dice scores as before
                 if patient_iou_per_class.ndim == 0:
                     patient_iou_per_class = patient_iou_per_class.unsqueeze(0)
                 for i, iou in enumerate(patient_iou_per_class):
