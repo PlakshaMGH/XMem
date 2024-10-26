@@ -63,7 +63,7 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
         batch_size=config.batch_size,
         max_jump=20,
         num_frames=8,
-        max_num_obj=1,
+        max_num_obj=config.max_num_obj,
         transform=transforms_dict,
         subset=[int(i) for i in subset_string.split(',')]
     )

@@ -160,15 +160,16 @@ class Config:
     num_workers: int = 8
     max_num_obj: int = 1
 
-    batch_size: int = 4
-    start_warm: int = 250
-    end_warm: int = 500
+    batch_size: int = 8
+    start_warm: int = 500
+    end_warm: int = 1000
     finetune: int = 0
     num_iterations: int = 2_500
     lr: float = 1e-5
     num_frames: int = 8 # default in the paper for training step on youtube videos
     num_ref_frames: int = 3
     max_skip_value: int = 20
+    max_num_obj: int = 3
     steps: List = field(default_factory=lambda: [3000])
 
     save_checkpoint_interval: int = 10_000
