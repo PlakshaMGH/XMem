@@ -158,7 +158,6 @@ class Config:
 
     amp: bool = False
     num_workers: int = 8
-    max_num_obj: int = 1
 
     batch_size: int = 8
     start_warm: int = 1500
