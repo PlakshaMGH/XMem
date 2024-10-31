@@ -100,6 +100,7 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
 
     # Initialize loss computer
     loss_computer = LossComputer(test_config.to_dict())
+    losses = defaultdict(list)
 
     for data in tqdm(vid_reader, total=num_frames):
         frame = data['rgb'].to(device)
@@ -109,8 +110,6 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
         shape = info['shape'] # original size
         need_resize = info['need_resize']
         idx = info['idx']
-
-        losses = defaultdict(list)
 
         # Map possibly non-continuous labels to continuous ones
         mask, labels = mapper.convert_mask(original_mask, exhaustive=True)
@@ -141,12 +140,11 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
         if need_resize:
             prob = F.interpolate(prob.unsqueeze(1), shape, mode='bilinear', align_corners=False)[:,0]
 
-        prob = prob.cpu()
         bce_loss, dice_loss = loss_computer.compute_test(prob, mask)
         losses['bce_loss'].append(bce_loss)
         losses['dice_loss'].append(dice_loss)
 
-        prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob, len(processor.all_labels))
+        prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob.cpu(), len(processor.all_labels))
         pred_masks.append(prob)
         mask = add_background_mask(mask.cpu())
         gt_masks.append(mask)
@@ -165,8 +163,8 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
     meanDice = Dice(pred_masks, gt_masks)
 
     # Calculate mean losses
-    mean_bce_loss = np.mean(losses['bce_loss'])
-    mean_dice_loss = np.mean(losses['dice_loss'])
+    mean_bce_loss = torch.mean(torch.tensor(losses['bce_loss'])).cpu().item()
+    mean_dice_loss = torch.mean(torch.tensor(losses['dice_loss'])).cpu().item()
 
     return meanIoU, meanDice, video_frames, mean_bce_loss, mean_dice_loss
 
@@ -181,6 +179,7 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, 
     if not model_dirs:
         raise ValueError("No model directories found in ./saves")
     
+    run_id = "e17type0"
     model_dir = saves_dir / run_id
     model_files = sorted(model_dir.glob("*.pth"), reverse=False)
     
