@@ -162,7 +162,7 @@ class XMemTrainer:
             losses['total_loss'].backward() 
             self.optimizer.step()
 
-        self.scheduler.step(losses['dice_loss'].item())
+        self.scheduler.step(losses['dice_loss'])
 
         return losses['total_loss'].item()
 
