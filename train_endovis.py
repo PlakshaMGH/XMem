@@ -123,7 +123,7 @@ def main(subset_string: str = "1,2,3,4,5,6,7,8", run_name: str = "Patient_1",
     
     # save the final model
     if local_rank == 0:
-        model.save_network(total_iterations-1)
+        model.save_network(total_iterations)
 
     print("Training complete!")
 

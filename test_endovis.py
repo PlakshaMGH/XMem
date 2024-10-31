@@ -179,7 +179,6 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, 
     if not model_dirs:
         raise ValueError("No model directories found in ./saves")
     
-    run_id = "e17type0"
     model_dir = saves_dir / run_id
     model_files = sorted(model_dir.glob("*.pth"), reverse=False)
     
@@ -205,6 +204,8 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, 
 
         # Test for each patient
         patient_ious = []
+        patient_ce_losses = []
+        patient_dice_losses = []
         video_frames_dict = {}
         for patient_id in TEST_VIDEOS_PATH.iterdir():
             # Initialize mapper for each patient for new labels in each patient
@@ -222,20 +223,28 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, 
                 # Log losses
                 logger.log_metrics('test', f'{patient_id.name}_ce_loss', mean_ce_loss, step=iteration_num)
                 logger.log_metrics('test', f'{patient_id.name}_dice_loss', mean_dice_loss, step=iteration_num)
+                patient_ce_losses.append(mean_ce_loss)
+                patient_dice_losses.append(mean_dice_loss)
 
                 # Log IoU and Dice scores
                 if patient_iou_per_class.ndim == 0:
                     patient_iou_per_class = patient_iou_per_class.unsqueeze(0)
                 for i, iou in enumerate(patient_iou_per_class):
-                    logger.log_metrics('test', f'{patient_id.name}_class_{processor.all_labels[i]}', iou, step=iteration_num)
+                    logger.log_metrics('test', f'{patient_id.name}_class_{processor.all_labels[i]}_iou', iou, step=iteration_num)
 
                 mean_iou = torch.mean(patient_iou_per_class)
-                logger.log_metrics('test', patient_id.name, mean_iou, step=iteration_num)
+                logger.log_metrics('test', f'{patient_id.name}_mean_iou', mean_iou, step=iteration_num)
                 patient_ious.append(mean_iou)
 
 
         avg_iou = np.mean(patient_ious)
         logger.log_metrics('test', 'avg_iou', avg_iou, step=iteration_num)
+
+        avg_ce_loss = np.mean(patient_ce_losses)
+        logger.log_metrics('test', 'avg_ce_loss', avg_ce_loss, step=iteration_num)
+
+        avg_dice_loss = np.mean(patient_dice_losses)
+        logger.log_metrics('test', 'avg_dice_loss', avg_dice_loss, step=iteration_num)
 
         if avg_iou > best_avg_iou:
             print(f"Previous best avg IoU: {best_avg_iou*100:.2f}% from {best_model_path}")

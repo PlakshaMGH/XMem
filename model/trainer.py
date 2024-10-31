@@ -42,13 +42,14 @@ class XMemTrainer:
         self.train()
         self.optimizer = optim.AdamW(filter(
             lambda p: p.requires_grad, self.XMem.parameters()), lr=config['lr'], weight_decay=config['weight_decay'])
-        # self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, config['steps'], config['gamma'])
+        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, config['steps'], config['gamma'])
         lr_factor = config['lr_scheduler_factor']
         lr_patience = config['lr_scheduler_patience']
         lr_cooldown = config['lr_scheduler_cooldown']
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min',
-                                                            factor=lr_factor, patience=lr_patience,
-                                                            cooldown=lr_cooldown, verbose=True)
+        # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min',
+        #                                                     factor=lr_factor, patience=lr_patience,
+        #                                                     cooldown=lr_cooldown, verbose=True)
+
         if config['amp']:
             self.scaler = GradScaler("cuda")
 
@@ -143,6 +144,12 @@ class XMemTrainer:
                     self.last_time = time.time()
                     self.train_integrator.finalize('train', it)
                     self.train_integrator.reset_except_hooks()
+                
+                if self.logger is not None:
+                    self.logger.log_scalar('train/it_total_loss', losses['total_loss'], it)
+                    self.logger.log_scalar('train/it_ce_loss', losses['total_ce_loss'], it)
+                    self.logger.log_scalar('train/it_dice_loss', losses['total_dice_loss'], it)
+
 
                 if it % self.save_network_interval == 0 and it != 0:
                     if self.logger is not None:
@@ -162,7 +169,7 @@ class XMemTrainer:
             losses['total_loss'].backward() 
             self.optimizer.step()
 
-        self.scheduler.step(losses['dice_loss'])
+        self.scheduler.step()
 
         return losses['total_loss'].item()
 

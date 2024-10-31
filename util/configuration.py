@@ -170,6 +170,7 @@ class Config:
     max_skip_value: List[int] = field(default_factory=lambda: [5, 20, 5, 2])
     max_num_obj: int = 3
     jump_steps: List[int] = field(default_factory=lambda: [250, 1000, 750, 500])
+    steps: List[int] = field(default_factory=lambda: [3000])
 
     # learning rate scheduler parameters
     lr_scheduler_factor: float = 0.1
