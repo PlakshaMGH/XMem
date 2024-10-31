@@ -76,11 +76,15 @@ class LossComputer:
         return losses
 
     def compute_test(self, pred_masks, gt_masks):
-        losses = defaultdict(float)
         
-        gt_masks = gt_masks.argmax(dim=1)
-        losses['bce_loss'], _ = self.bce(pred_masks, gt_masks, 0)
-        losses['dice_loss'] = dice_loss(pred_masks, gt_masks)
-        losses['total_loss'] = losses['bce_loss'] + losses['dice_loss']
+        # is gt_mask is not 4 dim, unsqueeze at 0
+        if gt_masks.ndim == 3:
+            gt_masks = gt_masks.unsqueeze(0)
+        if pred_masks.ndim == 3:
+            pred_masks = pred_masks.unsqueeze(0)
 
-        return losses
+        gt_masks = gt_masks.argmax(dim=1)
+        _bce_loss, _ = self.bce(pred_masks, gt_masks, 0)
+        _dice_loss = dice_loss(pred_masks, gt_masks)
+
+        return _bce_loss, _dice_loss

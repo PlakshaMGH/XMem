@@ -1,13 +1,14 @@
-import os
 import re
 from pathlib import Path
+from collections import defaultdict
+
 import torch
-import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 import cv2
 import typer
 
+import torch.nn.functional as F
 from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
 
 from util.configuration import test_config, init_logger
@@ -21,7 +22,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def torch_prob_to_one_hot_torch(prob, num_classes):
     mask = torch.argmax(prob, dim=0)
-    numpy_mask = mask.cpu().numpy()
+    numpy_mask = mask.numpy()
     mask = F.one_hot(mask, num_classes=num_classes+1).permute(2, 0, 1)
     return mask, numpy_mask
 
@@ -109,6 +110,8 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
         need_resize = info['need_resize']
         idx = info['idx']
 
+        losses = defaultdict(list)
+
         # Map possibly non-continuous labels to continuous ones
         mask, labels = mapper.convert_mask(original_mask, exhaustive=True)
         mask = torch.Tensor(mask).to(device)
@@ -131,15 +134,20 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
 
         # Run the model on this frame
         with torch.no_grad():
+            # frame -> (3,H,W), prob -> (C,H,W)
             prob = processor.step(frame, mask_to_use, labels_to_use, end=(idx==num_frames-1))
 
         # Upsample to original size if needed
         if need_resize:
             prob = F.interpolate(prob.unsqueeze(1), shape, mode='bilinear', align_corners=False)[:,0]
 
+        prob = prob.cpu()
+        bce_loss, dice_loss = loss_computer.compute_test(prob, mask)
+        losses['bce_loss'].append(bce_loss)
+        losses['dice_loss'].append(dice_loss)
+
         prob, prob_numpy_mask = torch_prob_to_one_hot_torch(prob, len(processor.all_labels))
-        pred_masks.append(prob.cpu())
-        pred_probs.append(prob_numpy_mask)
+        pred_masks.append(prob)
         mask = add_background_mask(mask.cpu())
         gt_masks.append(mask)
 
@@ -148,7 +156,6 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
 
     # Stack all masks
     pred_masks = torch.stack(pred_masks, dim=0)  # Shape: T*C*H*W
-    pred_probs = torch.stack(pred_probs, dim=0)  # Shape: T*C*H*W
     gt_masks = torch.stack(gt_masks, dim=0)  # Shape: T*C*H*W
 
     # Calculate IoU and Dice
@@ -157,10 +164,11 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
     meanIoU = IoU(pred_masks, gt_masks)
     meanDice = Dice(pred_masks, gt_masks)
 
-    # Calculate losses using the new compute_test method
-    losses = loss_computer.compute_test(pred_probs, gt_masks)
+    # Calculate mean losses
+    mean_bce_loss = np.mean(losses['bce_loss'])
+    mean_dice_loss = np.mean(losses['dice_loss'])
 
-    return meanIoU, meanDice, video_frames, losses
+    return meanIoU, meanDice, video_frames, mean_bce_loss, mean_dice_loss
 
 def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, project_name: str = "DataVar_XMem_E17_Type"):
 
@@ -209,14 +217,14 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, 
                 masks_path = TEST_MASKS_PATH / patient_id.name
                 print(f"Testing patient {patient_id.name}")
                 
-                patient_iou_per_class, _, video_frames, losses = test_patient(frames_path, masks_path, processor, mapper, size=384)
+                patient_iou_per_class, _, video_frames, mean_ce_loss, mean_dice_loss = test_patient(frames_path, masks_path, processor, mapper, size=384)
                 video_frames_dict[patient_id.name] = video_frames
 
                 # Log losses
-                for loss_name, loss_value in losses.items():
-                    logger.log_metrics('test', f'{patient_id.name}_{loss_name}', loss_value, step=iteration_num)
+                logger.log_metrics('test', f'{patient_id.name}_ce_loss', mean_ce_loss, step=iteration_num)
+                logger.log_metrics('test', f'{patient_id.name}_dice_loss', mean_dice_loss, step=iteration_num)
 
-                # Log IoU and Dice scores as before
+                # Log IoU and Dice scores
                 if patient_iou_per_class.ndim == 0:
                     patient_iou_per_class = patient_iou_per_class.unsqueeze(0)
                 for i, iou in enumerate(patient_iou_per_class):
