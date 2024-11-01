@@ -17,7 +17,7 @@ def get_loader(subset_string: str, num_iterations: int, max_jump: int, world_siz
 
     MAIN_FOLDER = Path("../data")
     TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames/train"
-    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train/type_masks"
+    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train"
 
     transforms_dict = get_transforms()
 

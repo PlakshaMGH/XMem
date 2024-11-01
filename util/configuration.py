@@ -168,7 +168,7 @@ class Config:
     num_frames: int = 8 # default in the paper for training step on youtube videos
     num_ref_frames: int = 3
     max_skip_value: List[int] = field(default_factory=lambda: [5, 20, 5, 2])
-    max_num_obj: int = 3
+    max_num_obj: int = 1
     jump_steps: List[int] = field(default_factory=lambda: [250, 1000, 750, 500])
     steps: List[int] = field(default_factory=lambda: [3000])
 
@@ -177,25 +177,11 @@ class Config:
     lr_scheduler_patience: int = 100
     lr_scheduler_cooldown: int = 50
 
-
-    # steps: List[int] = field(default_factory=lambda: [250, 1000, 750, 500])
-
     save_checkpoint_interval: int = 10_000
     save_network_interval: int = 250
 
     value_dim: int = 512
     weight_decay: float = 0.05
-
-    # Stage 3 Defaults
-    # s3_batch_size: int = 8
-    # s3_end_warm: int = 700
-    # s3_finetune: int = 0
-    # s3_iterations: int = 2500
-    # s3_lr: float = 1e-5
-    # s3_num_frames: int = 16
-    # s3_num_ref_frames: int = 3
-    # s3_start_warm: int = 200
-    # s3_steps: List[int] = field(default_factory=lambda: [2400])
 
     exp_id: str = "EndoVis17_Binary"
 
