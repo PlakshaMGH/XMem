@@ -102,6 +102,8 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
     loss_computer = LossComputer(test_config.to_dict())
     losses = defaultdict(list)
 
+    first_frame = True
+
     for data in tqdm(vid_reader, total=num_frames):
         frame = data['rgb'].to(device)
         original_mask = data['mask']
@@ -113,6 +115,10 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
 
         # Map possibly non-continuous labels to continuous ones
         mask, labels = mapper.convert_mask(original_mask, exhaustive=True)
+
+        if len(labels) == 0:
+            continue
+
         mask = torch.Tensor(mask).to(device)
         if need_resize:
             # resize_mask requires a batch dimension (B*C*H*W) C->classes
@@ -120,13 +126,11 @@ def test_patient(frames_path, masks_path, processor, mapper, size=-1):
         else:
             resized_mask = mask
 
-        if idx == 0:
+        if first_frame:
             processor.set_all_labels(list(mapper.remappings.values()))
             mask_to_use = resized_mask
             labels_to_use = labels
-            # IoU and Dice init
-            IoU = MeanIoU(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
-            Dice = GeneralizedDiceScore(num_classes=len(processor.all_labels)+1, per_class=True, include_background=False)
+            first_frame = False
         else:
             mask_to_use = None
             labels_to_use = None
