@@ -194,8 +194,8 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, 
     best_avg_iou = 0
 
     MAIN_FOLDER = Path("../data")
-    TEST_VIDEOS_PATH = MAIN_FOLDER / "frames/test"
-    TEST_MASKS_PATH = MAIN_FOLDER / "masks/test"
+    TEST_VIDEOS_PATH = MAIN_FOLDER / "frames"
+    TEST_MASKS_PATH = MAIN_FOLDER / "masks"
 
     torch.autograd.set_grad_enabled(False)
 

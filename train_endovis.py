@@ -16,8 +16,8 @@ from model.trainer import XMemTrainer
 def get_loader(subset_string: str, num_iterations: int, max_jump: int, world_size: int, local_rank: int):
 
     MAIN_FOLDER = Path("../data")
-    TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames/train"
-    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks/train"
+    TRAIN_VIDEOS_PATH = MAIN_FOLDER / "frames"
+    TRAIN_MASKS_PATH = MAIN_FOLDER / "masks"
 
     transforms_dict = get_transforms()
 
