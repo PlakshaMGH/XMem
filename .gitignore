@@ -8,3 +8,7 @@ __pycache__
 .secrets
 
 run.sh
+
+# local dev environment
+saves
+wandb

@@ -154,12 +154,12 @@ class Config:
     load_network: str = None
 
     log_image_interval: int = 250
-    log_text_interval: int = 50
+    log_text_interval: int = 250 
 
     amp: bool = False
     num_workers: int = 8
 
-    batch_size: int = 8
+    batch_size: int = 4
     start_warm: int = 1000
     end_warm: int = 2000
     finetune: int = 0
