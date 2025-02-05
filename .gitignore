@@ -12,3 +12,4 @@ run.sh
 # local dev environment
 saves
 wandb
+saved_videos
