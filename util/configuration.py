@@ -206,15 +206,15 @@ class TestConfig:
 config = Config()
 test_config = TestConfig()
 
-def init_logger(new_run_name=None, run_id=None, project_name="DataVar_XMem_E17_Type", config=config, do_logging=True):
+def init_logger(new_run_name=None, run_id=None, project_name="DataVar_XMem_E17_Type", config=config,train_set=None, do_logging=True):
 
     if new_run_name:
-        logger = WandbLogger(run_name=new_run_name, project_name=project_name, run_id=run_id, do_logging=do_logging)
+        logger = WandbLogger(run_name=new_run_name, project_name=project_name, run_id=run_id, train_set=train_set, do_logging=do_logging)
     elif run_id:
         # Don't create new run, do_logging=False, new_run_name wont be used
-        logger = WandbLogger(run_name=new_run_name, project_name=project_name, run_id=run_id, do_logging=False).get_run(run_id)
+        logger = WandbLogger(run_name=new_run_name, project_name=project_name, run_id=run_id, train_set=train_set, do_logging=False).get_run(run_id)
     else:
-        logger = WandbLogger(run_name=None, project_name=project_name, run_id=None, do_logging=False)
+        logger = WandbLogger(run_name=None, project_name=project_name, run_id=None, train_set=train_set, do_logging=False)
 
     logger.log_string("hyperparams", str(config))
     

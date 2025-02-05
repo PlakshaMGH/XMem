@@ -17,7 +17,7 @@ def fix_width_trunc(x):
     return ('{:.9s}'.format('{:0.9f}'.format(x)))
 
 class WandbLogger:
-    def __init__(self, run_name, project_name, run_id, do_logging=True):
+    def __init__(self, run_name, project_name, run_id, train_set, do_logging=True):
         self.project_name = project_name
         self.run_name = run_name
 
@@ -32,6 +32,7 @@ class WandbLogger:
                 project=project_name,  # Replace with your project name
                 name=run_name,
                 id=run_id,
+                notes=f"train-set:{train_set}" if train_set else "",
                 reinit=True  # Allows multiple runs within the same script
             )
 
