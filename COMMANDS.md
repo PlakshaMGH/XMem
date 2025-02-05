@@ -9,7 +9,14 @@ rclone copy remote:endovis/endo17/data/frames ~/workspace/data/frames --progress
 rclone copy remote:endovis/endo17/data/masks ~/workspace/data/masks --progress --transfers 32
 ```
 
-### training
+### Training
 ```bash
-torchrun --nproc_per_node=1 train_endovis.py --subset-string "1" --run-name "Patient_1" --run-id "e17bin-p1" --project-name "DataVar_XMem_E17_Bin"
+torchrun --nproc_per_node=1 train_endovis.py --subset-string "1" --run-name "Patient_1"  \ 
+--run-id "e17bin-p1" --project-name "DataVar_XMem_E17_Bin"
+```
+
+### Testing
+```bash
+python test_endovis.py --subset-string "9,10" --train-set "1"  --run-id "e17bin-p1" \
+--project-name "DataVar_XMem_E17_Bin"
 ```
