@@ -9,3 +9,4 @@ wandb[media]
 matplotlib
 torchmetrics
 typer
+ffmpeg-python
