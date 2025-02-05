@@ -7,6 +7,7 @@ import numpy as np
 from tqdm import tqdm
 import cv2
 import typer
+import ffmpeg
 
 import torch.nn.functional as F
 from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
@@ -74,13 +75,31 @@ def create_video_from_frames(video_frames, video_name):
     video_path = save_folder / f"{video_name}.mp4"
     sample_frame = list(video_frames.values())[0]
     size1, size2, _ = sample_frame.shape
-    out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'avc1'), 1, (size2, size1), True)
-    for frame_name, frame in sorted(video_frames.items(), key=lambda x: x[0]):
-        out_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        out.write(out_img)
-    out.release()
 
-    return str(video_path)
+    output_options = {
+        'framerate': 1,
+        'pix_fmt': 'yuv420p',
+        's': f'{size2}x{size1}',
+        'c:v': 'h264_nvenc', 
+        'preset': 'fast'
+    }
+
+    process = (
+        ffmpeg
+        .input('pipe:0', format='rawvideo', pix_fmt='rgb24', s=f'{size2}x{size1}', framerate=1)
+        .output(str(video_path), **output_options)
+        .overwrite_output()
+        .run_async(pipe_stdin=True)
+    )
+
+    for _, frame in sorted(video_frames.items(), key=lambda x: x[0]):
+        # out_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert BGR to RGB
+        process.stdin.write(frame.tobytes())
+
+    process.stdin.close()
+    process.wait()
+
+    return str(video_path.absolute())
 
 def create_numpy_video_from_frames(video_frames):
     numpy_video = []

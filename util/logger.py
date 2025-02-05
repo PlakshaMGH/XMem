@@ -124,7 +124,8 @@ class WandbLogger:
 
     def log_video(self, video_path, name="video"):
         if not self.no_log:
-            wandb.log({name: wandb.Video(video_path)})
+            print(str(video_path))
+            wandb.log({name: wandb.Video(str(video_path),format="mp4")})
 
     def finish(self):
         if not self.no_log:
