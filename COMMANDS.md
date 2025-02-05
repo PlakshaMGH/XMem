@@ -11,8 +11,7 @@ rclone copy remote:endovis/endo17/data/masks ~/workspace/data/masks --progress -
 
 ### Training
 ```bash
-torchrun --nproc_per_node=1 train_endovis.py --subset-string "1" --run-name "Patient_1"  \ 
---run-id "e17bin-p1" --project-name "DataVar_XMem_E17_Bin"
+torchrun --nproc_per_node=1 train_endovis.py --subset-string "1" --run-name "Patient_1" --run-id "e17bin-p1" --project-name "DataVar_XMem_E17_Bin"
 ```
 
 ### Testing
