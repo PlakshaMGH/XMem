@@ -279,7 +279,8 @@ def main(subset_string: str = "9,10", train_set: str = "1", run_id: str = None, 
     # Save the best model
     if best_model_path:
         print(f"Best model found: {best_model_path} with avg IoU: {best_avg_iou*100:.2f}%")
-        model_name = f"best_{train_set}_{best_avg_iou*100:.2f}.pth"
+        safe_train_set = train_set.replace(",","_")
+        model_name = f"best_{safe_train_set}_{best_avg_iou*100:.2f}.pth"
         logger.log_metrics('test', 'best_avg_iou', best_avg_iou, step=int(train_set[-1]))
         logger.log_model(best_model_path, name=model_name)
         if best_video_frames:
