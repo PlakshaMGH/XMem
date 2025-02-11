@@ -80,6 +80,11 @@ class VideoReader(Dataset):
             mask = Image.open(gt_path).convert('P')
             mask = np.array(mask, dtype=np.uint8)
             data['mask'] = mask
+        # if mask path not found but load mask is true,
+        # create empty mask
+        if load_mask:
+            mask = np.zeros(shape, dtype=np.uint8)
+            data['mask'] = mask
 
         info['shape'] = shape
         info['need_resize'] = not (self.size < 0)
