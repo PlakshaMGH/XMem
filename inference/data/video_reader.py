@@ -82,7 +82,7 @@ class VideoReader(Dataset):
             data['mask'] = mask
         # if mask path not found but load mask is true,
         # create empty mask
-        if load_mask:
+        elif load_mask:
             mask = np.zeros(shape, dtype=np.uint8)
             data['mask'] = mask
 
